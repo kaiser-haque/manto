@@ -2,9 +2,9 @@
 
 ## Current day
 
-Day 1 — complete.
+Day 2 — complete.
 
-Next session: Day 2 — Maven multi-module structure.
+Next session: Day 3 — manto-core API.
 
 ## Current version
 
@@ -13,7 +13,7 @@ Next session: Day 2 — Maven multi-module structure.
 ## Completed
 
 - [x] Repository foundation
-- [ ] Maven modules
+- [x] Maven modules
 - [ ] Core API
 - [ ] Producer
 - [ ] Consumer
@@ -27,7 +27,17 @@ Next session: Day 2 — Maven multi-module structure.
 
 ## Current task
 
-Day 1 — Project setup.
+Day 2 — Maven multi-module structure.
+
+## Day 2 work
+
+- Root parent POM (pom.xml): groupId `io.github.manto` (placeholder until Day 28 confirms the Maven Central namespace), artifactId `manto`, version `0.1.0-SNAPSHOT`, packaging `pom`.
+- Modules: manto-core, manto-kafka, manto-spring-boot-autoconfigure, manto-spring-boot-starter, manto-test (per ADR-001).
+- Java 21 via `maven.compiler.release=21`; UTF-8 encoding.
+- Dependency management imports `spring-boot-dependencies:3.5.16` (no Spring Boot parent; Manto owns the hierarchy).
+- Plugin management: maven-compiler-plugin 3.13.0, maven-surefire-plugin 3.5.2, maven-jar-plugin 3.4.2.
+- Dependency boundaries: manto-core has no dependencies; manto-kafka depends on manto-core and spring-kafka; manto-spring-boot-autoconfigure depends on manto-core, manto-kafka, spring-boot-autoconfigure, spring-boot, and spring-boot-configuration-processor (optional); manto-spring-boot-starter depends only on manto-spring-boot-autoconfigure; manto-test depends on manto-core.
+- No Java sources, tests, or Kafka functionality yet (Days 3+).
 
 ## Day 1 work
 
@@ -37,21 +47,6 @@ Day 1 — Project setup.
 - Decisions: ADR-001 through ADR-005 in development/decisions/.
 - Task plans: tasks/DAY-01.md through tasks/DAY-30.md.
 - No Kafka or Maven functionality implemented (Days 2+).
-
-## Tests run
-
-- None on Day 1: no functional code exists yet; acceptance criteria for tests are not applicable to a documentation-only day.
-- Expected verification from Day 2 onward: `mvn clean verify` (requires Docker for Testcontainers integration tests).
-
-## Known issues
-
-None yet.
-
-## Expected commit message
-
-```text
-feat: initialize Manto project
-```
 
 ## Notes
 
