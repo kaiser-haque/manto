@@ -2,9 +2,9 @@
 
 ## Current day
 
-Day 2 — complete.
+Day 3 — complete.
 
-Next session: Day 3 — manto-core API.
+Next session: Day 4 — manto-core API.
 
 ## Current version
 
@@ -14,6 +14,7 @@ Next session: Day 3 — manto-core API.
 
 - [x] Repository foundation
 - [x] Maven modules
+- [x] Dependency management
 - [ ] Core API
 - [ ] Producer
 - [ ] Consumer
@@ -27,7 +28,16 @@ Next session: Day 3 — manto-core API.
 
 ## Current task
 
-Day 2 — Maven multi-module structure.
+Day 3 — dependency management.
+
+## Day 3 work
+
+- Root POM: `spring-boot.version` property (3.5.16) extracted; BOM import uses it.
+- Root POM: the five modules (manto-core, manto-kafka, manto-spring-boot-autoconfigure, manto-spring-boot-starter, manto-test) added to `dependencyManagement` at `${project.version}`.
+- Root POM: inherited test-scope `junit-jupiter` (5.12.2) and `mockito-junit-jupiter` (5.17.0); versions come from the Spring Boot BOM. Test scope only, so no runtime leakage.
+- manto-kafka and manto-spring-boot-autoconfigure: added test-scope `org.testcontainers:junit-jupiter` and `org.testcontainers:kafka` (1.21.4, managed by BOM).
+- No production or test Java sources this day (configuration only).
+- Verified with `mvn dependency:tree`: all versions resolve from the BOM (spring-kafka 3.3.16, kafka-clients 3.9.2, jackson 2.21.4, junit 5.12.2, mockito 5.17.0, testcontainers 1.21.4, micrometer 1.15.12). `manto-core` compile/runtime dependency tree is empty; it remains free of Kafka/Spring dependencies per ADR-003.
 
 ## Day 2 work
 
@@ -51,3 +61,15 @@ Day 2 — Maven multi-module structure.
 ## Notes
 
 Update this file at the end of every daily session.
+
+## Tests run
+
+- `mvn clean verify` — BUILD SUCCESS, all 6 reactor modules.
+
+## Known issues
+
+- None.
+
+## Next task
+
+Day 4 — Core API (MantoProducer, MantoEventMetadata, core API types) in manto-core. Expected commit message for Day 3: `build: configure project dependencies`.
