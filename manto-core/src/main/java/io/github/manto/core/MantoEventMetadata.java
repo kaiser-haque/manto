@@ -22,4 +22,21 @@ public record MantoEventMetadata(
         String correlationId,
         String source,
         Instant timestamp) {
+
+    public MantoEventMetadata {
+        requireNotBlank(eventId, "eventId");
+        requireNotBlank(eventType, "eventType");
+        requireNotBlank(eventVersion, "eventVersion");
+        requireNotBlank(correlationId, "correlationId");
+        requireNotBlank(source, "source");
+        if (timestamp == null) {
+            throw new IllegalArgumentException("timestamp must not be null");
+        }
+    }
+
+    private static void requireNotBlank(String value, String field) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(field + " must not be null or blank");
+        }
+    }
 }

@@ -2,9 +2,9 @@
 
 ## Current day
 
-Day 4 — complete.
+Day 5 — complete.
 
-Next session: Day 5 — manto-kafka producer.
+Next session: Day 6 — Kafka producer.
 
 ## Current version
 
@@ -28,7 +28,17 @@ Next session: Day 5 — manto-kafka producer.
 
 ## Current task
 
-Day 4 — core API.
+Day 5 — event metadata.
+
+## Day 5 work
+
+- `MantoEventMetadata`: added a compact constructor that requires every field:
+  - `eventId`, `eventType`, `eventVersion`, `correlationId`, `source` must not be null or blank.
+  - `timestamp` must not be null.
+  - Violations throw `IllegalArgumentException` with a field-specific message.
+  - No new dependencies; record stays immutable and Kafka-header-ready (header serialization is Day 12).
+- `MantoEventMetadataTest`: added 7 validation tests (null/blank per string field, null timestamp); 10 tests total in this class.
+- No docs changes needed; validation does not alter documented public behavior.
 
 ## Day 4 work
 
@@ -75,7 +85,7 @@ Update this file at the end of every daily session.
 
 ## Tests run
 
-- `mvn -pl manto-core test` — BUILD SUCCESS, 8 tests (MantoEventMetadataTest 3, MantoListenerTest 4, MantoHeadersTest 1).
+- `mvn -pl manto-core test` — BUILD SUCCESS, 15 tests (MantoEventMetadataTest 10, MantoListenerTest 4, MantoHeadersTest 1).
 - `mvn clean verify` — BUILD SUCCESS, all 6 reactor modules.
 
 ## Known issues
@@ -84,4 +94,4 @@ Update this file at the end of every daily session.
 
 ## Next task
 
-Day 5 — manto-kafka producer (Kafka-backed `MantoProducer` implementation). Expected commit message for Day 4: `feat: add core Manto APIs`.
+Day 6 — manto-kafka producer (Kafka-backed `MantoProducer` implementation). Expected commit message for Day 5: `feat: add event metadata model`.
