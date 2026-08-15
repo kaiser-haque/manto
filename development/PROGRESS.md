@@ -2,9 +2,9 @@
 
 ## Current day
 
-Day 3 — complete.
+Day 4 — complete.
 
-Next session: Day 4 — manto-core API.
+Next session: Day 5 — manto-kafka producer.
 
 ## Current version
 
@@ -15,7 +15,7 @@ Next session: Day 4 — manto-core API.
 - [x] Repository foundation
 - [x] Maven modules
 - [x] Dependency management
-- [ ] Core API
+- [x] Core API
 - [ ] Producer
 - [ ] Consumer
 - [ ] Retry
@@ -28,7 +28,18 @@ Next session: Day 4 — manto-core API.
 
 ## Current task
 
-Day 3 — dependency management.
+Day 4 — core API.
+
+## Day 4 work
+
+- `manto-core` initial public API in package `io.github.manto.core` (no new dependencies, per ADR-003):
+  - `MantoProducer`: interface `void publish(String topic, T event)` — framework producer abstraction.
+  - `MantoEventMetadata`: immutable record with eventId, eventType, eventVersion, correlationId, source, timestamp (`Instant`).
+  - `MantoListener`: method-level annotation with `topic` and `groupId` (`@Retention(RUNTIME)`, `@Target(METHOD)`, `@Documented`).
+  - `IdempotencyStore`: interface `isProcessed(String)` / `markProcessed(String)` (ADR-005). Abstraction only; in-memory implementation is a later task.
+  - `MantoHeaders`: standardized header name constants (`Manto-Event-Id`, `Manto-Event-Type`, `Manto-Event-Version`, `Manto-Correlation-Id`, `Manto-Source`) per docs/API_DESIGN.md.
+- No Kafka or Spring dependencies; no Kafka-specific functionality implemented.
+- Unit tests: `MantoEventMetadataTest`, `MantoListenerTest`, `MantoHeadersTest` (8 tests total).
 
 ## Day 3 work
 
@@ -64,6 +75,7 @@ Update this file at the end of every daily session.
 
 ## Tests run
 
+- `mvn -pl manto-core test` — BUILD SUCCESS, 8 tests (MantoEventMetadataTest 3, MantoListenerTest 4, MantoHeadersTest 1).
 - `mvn clean verify` — BUILD SUCCESS, all 6 reactor modules.
 
 ## Known issues
@@ -72,4 +84,4 @@ Update this file at the end of every daily session.
 
 ## Next task
 
-Day 4 — Core API (MantoProducer, MantoEventMetadata, core API types) in manto-core. Expected commit message for Day 3: `build: configure project dependencies`.
+Day 5 — manto-kafka producer (Kafka-backed `MantoProducer` implementation). Expected commit message for Day 4: `feat: add core Manto APIs`.
