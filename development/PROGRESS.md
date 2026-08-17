@@ -2,9 +2,9 @@
 
 ## Current day
 
-Day 5 — complete.
+Day 6 — complete.
 
-Next session: Day 6 — Kafka producer.
+Next session: Day 7 — producer integration test.
 
 ## Current version
 
@@ -16,7 +16,7 @@ Next session: Day 6 — Kafka producer.
 - [x] Maven modules
 - [x] Dependency management
 - [x] Core API
-- [ ] Producer
+- [x] Producer
 - [ ] Consumer
 - [ ] Retry
 - [ ] DLT
@@ -28,7 +28,18 @@ Next session: Day 6 — Kafka producer.
 
 ## Current task
 
-Day 5 — event metadata.
+Day 6 — Kafka producer.
+
+## Day 6 work
+
+- `MantoKafkaProducer` (manto-kafka, `io.github.manto.kafka`): implements the core `MantoProducer` abstraction (ADR-004) by wrapping a constructor-injected `KafkaTemplate<String, Object>`; the underlying producer factory is expected to use Spring's JSON serializer (FR-03), so typed events are encoded as JSON by Spring Kafka.
+  - `publish(topic, event)` validates topic (not null/blank) and event (not null) with `IllegalArgumentException`, matching the core contract.
+  - Publishing is synchronous: the call blocks on the Kafka send future and surfaces failures as `MantoProducerException`.
+  - Interrupted sends restore the thread interrupt flag and also wrap in `MantoProducerException`.
+  - No retry/DLT/metrics/headers — those are future days (headers are Day 12, producer Testcontainers test is Day 7).
+- `MantoProducerException`: unchecked exception wrapping Kafka send failures so callers do not depend on Spring Kafka exception types.
+- `MantoKafkaProducerTest`: 6 unit tests with Mockito covering happy-path delegation, null/blank topic, null event, send failure wrapping, and interrupt handling.
+- No pom or docs changes needed; the producer does not change documented public behavior or configuration.
 
 ## Day 5 work
 
@@ -85,7 +96,7 @@ Update this file at the end of every daily session.
 
 ## Tests run
 
-- `mvn -pl manto-core test` — BUILD SUCCESS, 15 tests (MantoEventMetadataTest 10, MantoListenerTest 4, MantoHeadersTest 1).
+- `mvn -pl manto-kafka -am test` — BUILD SUCCESS, 21 tests (manto-core 15, manto-kafka 6 new).
 - `mvn clean verify` — BUILD SUCCESS, all 6 reactor modules.
 
 ## Known issues
@@ -94,4 +105,4 @@ Update this file at the end of every daily session.
 
 ## Next task
 
-Day 6 — manto-kafka producer (Kafka-backed `MantoProducer` implementation). Expected commit message for Day 5: `feat: add event metadata model`.
+Day 7 — producer integration test with Testcontainers (real Kafka). Expected commit message for Day 6: `feat: implement Kafka producer`.
