@@ -2,9 +2,9 @@
 
 ## Current day
 
-Day 7 — complete.
+Day 8 — complete.
 
-Next session: Day 8 — consumer.
+Next session: Day 9 — listener registration.
 
 ## Current version
 
@@ -28,7 +28,17 @@ Next session: Day 8 — consumer.
 
 ## Current task
 
-Day 7 — producer Kafka integration test.
+Day 8 — MantoListener annotation.
+
+## Day 8 work
+
+- The `@MantoListener` public annotation already exists in manto-core (created within Day 4's "Core API" scope): `@Documented @Retention(RUNTIME) @Target(METHOD)`, with required `topic()` and `groupId()` — exactly matching docs/API_DESIGN.md.
+- Day 8 verified the existing annotation against the documented contract instead of reimplementing it:
+  - Design confirmed: plain Java annotation (no Spring/Kafka imports, per ADR-003); method-targeted (one annotation = one handler = one topic binding); runtime retention for startup reflection by the future auto-configuration; required attributes so misconfiguration fails at compile time.
+  - No code changes needed; "keep the annotation minimal" rules out additions such as `@Inherited` (not applicable to methods) or optional/defaulted fields (not in the API design).
+  - `MantoListenerTest` (4 tests) already validates runtime retention, method target, `@Documented`, and topic/groupId value exposure.
+- Runtime machinery (discovery/registration, Spring Boot wiring) is deliberately out of scope — Days 9+.
+- No production code, pom, or docs changes.
 
 ## Day 7 work
 
@@ -106,9 +116,8 @@ Update this file at the end of every daily session.
 
 ## Tests run
 
-- `mvn -pl manto-kafka -am test -Dtest=MantoKafkaProducerIntegrationTest -Dsurefire.failIfNoSpecifiedTests=false` — PASS, integration test against a real `apache/kafka:3.9.1` container (KRaft).
-- `mvn -pl manto-kafka -am test` — BUILD SUCCESS, 22 tests (manto-core 15, manto-kafka 7 including the new integration test).
-- `mvn clean verify` — BUILD SUCCESS, all 6 reactor modules.
+- `mvn -pl manto-core -am test` — BUILD SUCCESS, 15 tests (all manto-core, including the 4 `MantoListenerTest` tests).
+- `mvn clean verify` — BUILD SUCCESS, all 6 reactor modules (core 15 + kafka 7 tests, including the Testcontainers producer integration test).
 
 ## Known issues
 
@@ -117,4 +126,4 @@ Update this file at the end of every daily session.
 
 ## Next task
 
-Day 8 — consumer. Expected commit message for Day 7: `test: add producer Kafka integration test`.
+Day 9 — listener registration (discovery/registration of `@MantoListener` methods). Expected commit message for Day 8: `feat: add MantoListener annotation`.
