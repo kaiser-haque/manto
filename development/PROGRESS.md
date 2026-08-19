@@ -2,9 +2,9 @@
 
 ## Current day
 
-Day 6 — complete.
+Day 7 — complete.
 
-Next session: Day 7 — producer integration test.
+Next session: Day 8 — consumer.
 
 ## Current version
 
@@ -28,7 +28,17 @@ Next session: Day 7 — producer integration test.
 
 ## Current task
 
-Day 6 — Kafka producer.
+Day 7 — producer Kafka integration test.
+
+## Day 7 work
+
+- `MantoKafkaProducerIntegrationTest` (manto-kafka, `io.github.manto.kafka`): end-to-end Testcontainers test verifying `MantoProducer` -> real Kafka -> message exists.
+  - Uses `org.testcontainers.kafka.KafkaContainer` (modern KRaft container; the old `org.testcontainers.containers.KafkaContainer` is deprecated in Testcontainers 1.21.4) with the official `apache/kafka:3.9.1` image, matching kafka-clients 3.9.2.
+  - Real broker, no mocks: a `DefaultKafkaProducerFactory` + `KafkaTemplate<String, Object>` with Spring's `JsonSerializer` drives `MantoKafkaProducer`, and a real `KafkaConsumer` with `StringDeserializer` reads the record back from the topic.
+  - The topic is created up front with an `AdminClient` (1 partition, RF 1); the consumer uses `assign` + `earliest` and polls until the record arrives (30 s deadline).
+  - Asserts the payload is the JSON encoding of the published event (`orderId`, `amount`), verifying FR-03 serialization through the real broker.
+- manto-kafka pom: added test-scope `com.fasterxml.jackson.core:jackson-databind` (managed by the Spring Boot BOM) so the test can parse the produced JSON. Spring Kafka declares jackson optional, so it is not otherwise on the classpath.
+- No production code or public API changes; no docs changes needed.
 
 ## Day 6 work
 
@@ -96,13 +106,15 @@ Update this file at the end of every daily session.
 
 ## Tests run
 
-- `mvn -pl manto-kafka -am test` — BUILD SUCCESS, 21 tests (manto-core 15, manto-kafka 6 new).
+- `mvn -pl manto-kafka -am test -Dtest=MantoKafkaProducerIntegrationTest -Dsurefire.failIfNoSpecifiedTests=false` — PASS, integration test against a real `apache/kafka:3.9.1` container (KRaft).
+- `mvn -pl manto-kafka -am test` — BUILD SUCCESS, 22 tests (manto-core 15, manto-kafka 7 including the new integration test).
 - `mvn clean verify` — BUILD SUCCESS, all 6 reactor modules.
 
 ## Known issues
 
-- None.
+- The Kafka container image pull dominates the integration test runtime on first run (~1 minute; ~65 s total for the test). No functional issues.
+- SLF4J NOP warnings appear during tests; no logger binding is configured (non-blocking).
 
 ## Next task
 
-Day 7 — producer integration test with Testcontainers (real Kafka). Expected commit message for Day 6: `feat: implement Kafka producer`.
+Day 8 — consumer. Expected commit message for Day 7: `test: add producer Kafka integration test`.
