@@ -2,9 +2,9 @@
 
 ## Current day
 
-Day 8 — complete.
+Day 9 — complete.
 
-Next session: Day 9 — listener registration.
+Next session: Day 10 — consumer (handler invocation).
 
 ## Current version
 
@@ -17,6 +17,7 @@ Next session: Day 9 — listener registration.
 - [x] Dependency management
 - [x] Core API
 - [x] Producer
+- [x] Listener registration
 - [ ] Consumer
 - [ ] Retry
 - [ ] DLT
@@ -28,7 +29,21 @@ Next session: Day 9 — listener registration.
 
 ## Current task
 
-Day 8 — MantoListener annotation.
+Day 9 — MantoListener discovery and registration.
+
+## Day 9 work
+
+- `manto-kafka` (package `io.github.manto.kafka`) implements discovery and registration of `@MantoListener` methods, connecting them to Spring Kafka through the standard programmatic-registration hook:
+  - `MantoListenerDefinition` — immutable record binding a bean, method, topic, and group id.
+  - `MantoListenerValidator` — fail-fast validation: public, non-static, exactly one parameter (the event payload), non-blank topic and group id; violations throw `MantoListenerConfigurationException` (extends `IllegalStateException`) naming the offending class#method, so misconfiguration stops startup.
+  - `MantoListenerDiscoverer` — scans a `ListableBeanFactory` for annotated methods after all singletons are instantiated, unwrapping proxies via `AopUtils.getTargetClass` (CGLIB-safe).
+  - `KafkaListenerEndpointFactory` + `MethodKafkaListenerEndpointFactory` — build a `MethodKafkaListenerEndpoint<String, ?>` per definition with a unique id (`topic:groupId:Class.method`), group id, topics, bean, and method, plus the same `KafkaMessageHandlerMethodFactory` wiring Spring Kafka uses for `@KafkaListener` (conversion service + `GenericMessageConverter`, then `afterPropertiesSet`).
+  - `MantoListenerRegistrar` — implements `KafkaListenerConfigurer`; Spring Kafka's `KafkaListenerAnnotationBeanPostProcessor` calls `configureKafkaListeners(registrar)` for every configurer bean, so declaring this bean is the entire integration. Discovery runs at that point (after all singletons exist), and endpoints join the same registrar/registry as `@KafkaListener` methods; the app's `kafkaListenerContainerFactory` builds the containers.
+  - Error boundaries: configuration errors (validation/registration) fail fast at startup; runtime message-processing errors stay with Spring Kafka (retry/DLT are future days).
+- `manto-spring-boot-autoconfigure`: `MantoAutoConfiguration` (`@AutoConfiguration`, `@ConditionalOnClass(KafkaListenerContainerFactory.class)`) declares the validator, discoverer, endpoint factory, and registrar beans; registered via `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`. No producer/consumer factory auto-configuration (Day 14).
+- `manto-core` untouched; `@MantoListener` semantics unchanged.
+- Tests: `MantoListenerValidatorTest` (7), `MantoListenerDiscovererTest` (4, including CGLIB proxy unwrapping), `MethodKafkaListenerEndpointFactoryTest` (2, including unique ids for handlers sharing topic/group), `MantoListenerRegistrarTest` (2), and `MantoListenerRegistrationContextTest` in the autoconfigure module (1): a real `AnnotationConfigApplicationContext` with `@EnableKafka` + the auto-configuration + a container factory backed by a mocked `ConsumerFactory` (`MockConsumer`, no broker) proves a `@MantoListener` method lands in the Spring `KafkaListenerEndpointRegistry` end to end.
+- No config/docs changes: discovery/registration changes no documented public API or configuration surface.
 
 ## Day 8 work
 
@@ -116,8 +131,9 @@ Update this file at the end of every daily session.
 
 ## Tests run
 
-- `mvn -pl manto-core -am test` — BUILD SUCCESS, 15 tests (all manto-core, including the 4 `MantoListenerTest` tests).
-- `mvn clean verify` — BUILD SUCCESS, all 6 reactor modules (core 15 + kafka 7 tests, including the Testcontainers producer integration test).
+- `mvn -pl manto-kafka -am test` — BUILD SUCCESS, 22 tests (15 core + 22 kafka).
+- `mvn -pl manto-spring-boot-autoconfigure -am test` — BUILD SUCCESS, 38 tests including the listener-registration context test.
+- `mvn clean verify` — BUILD SUCCESS, all 6 reactor modules (core 15 + kafka 22 + autoconfigure 1 tests, including the Testcontainers producer integration test).
 
 ## Known issues
 
@@ -126,4 +142,4 @@ Update this file at the end of every daily session.
 
 ## Next task
 
-Day 9 — listener registration (discovery/registration of `@MantoListener` methods). Expected commit message for Day 8: `feat: add MantoListener annotation`.
+Day 10 — consumer (Kafka consumption and handler invocation). Expected commit message for Day 9: `feat: add listener registration`.
