@@ -2,9 +2,9 @@
 
 ## Current day
 
-Day 9 — complete.
+Day 10 — complete.
 
-Next session: Day 10 — consumer (handler invocation).
+Next session: Day 11 — retry.
 
 ## Current version
 
@@ -18,7 +18,7 @@ Next session: Day 10 — consumer (handler invocation).
 - [x] Core API
 - [x] Producer
 - [x] Listener registration
-- [ ] Consumer
+- [x] Consumer
 - [ ] Retry
 - [ ] DLT
 - [ ] Idempotency
@@ -29,7 +29,14 @@ Next session: Day 10 — consumer (handler invocation).
 
 ## Current task
 
-Day 9 — MantoListener discovery and registration.
+Day 10 — Manto consumer (Kafka consumption and handler invocation).
+
+## Day 10 work
+
+- `manto-kafka`: Updated `MethodKafkaListenerEndpointFactory` to use `GenericMessageConverter` with a `DefaultFormattingConversionService`, ensuring the handler method factory can convert the deserialized message payload (from the container's `RecordMessageConverter`, typically `JsonMessageConverter`) to the handler method's parameter type. This completes the consumer execution path: Kafka → Spring Kafka listener → Manto listener infrastructure → deserialization → `@MantoListener` → application method.
+- `manto-spring-boot-autoconfigure`: Added `MantoKafkaConsumerIntegrationTest` (Testcontainers) — end-to-end test verifying a `@MantoListener` handler is invoked with a correctly deserialized typed event object (`OrderCreatedEvent`) produced as JSON to a real Kafka broker. The test uses a real `AnnotationConfigApplicationContext` with `@EnableKafka` + auto-configuration + a `ConcurrentKafkaListenerContainerFactory` backed by a real `DefaultKafkaConsumerFactory` with `JsonDeserializer`.
+- `manto-kafka`: Added unit test `MethodKafkaListenerEndpointFactoryTest` (3 tests) verifying endpoint creation, unique IDs for handlers sharing topic/group, and message handler method factory configuration.
+- No public API changes; no config/docs changes.
 
 ## Day 9 work
 
@@ -131,9 +138,9 @@ Update this file at the end of every daily session.
 
 ## Tests run
 
-- `mvn -pl manto-kafka -am test` — BUILD SUCCESS, 22 tests (15 core + 22 kafka).
-- `mvn -pl manto-spring-boot-autoconfigure -am test` — BUILD SUCCESS, 38 tests including the listener-registration context test.
-- `mvn clean verify` — BUILD SUCCESS, all 6 reactor modules (core 15 + kafka 22 + autoconfigure 1 tests, including the Testcontainers producer integration test).
+- `mvn -pl manto-kafka -am test` — BUILD SUCCESS, 23 tests (15 core + 23 kafka).
+- `mvn -pl manto-spring-boot-autoconfigure -am test` — BUILD SUCCESS, 2 tests including the consumer integration test and listener-registration context test.
+- `mvn clean verify` — BUILD SUCCESS, all 6 reactor modules (core 15 + kafka 23 + autoconfigure 2 tests, including the Testcontainers producer and consumer integration tests).
 
 ## Known issues
 
@@ -142,4 +149,4 @@ Update this file at the end of every daily session.
 
 ## Next task
 
-Day 10 — consumer (Kafka consumption and handler invocation). Expected commit message for Day 9: `feat: add listener registration`.
+Day 11 — retry (configurable retry attempts and exponential backoff). Expected commit message for Day 10: `feat: implement Manto consumer`

@@ -14,9 +14,11 @@ import java.lang.reflect.Method;
  * {@link MethodKafkaListenerEndpoint}.
  *
  * <p>The endpoint delegates message conversion and handler invocation to
- * Spring Kafka's messaging adapter; the listener container factory's message
- * converter is used for the payload. The handler method factory matches the
- * one Spring Kafka uses for {@code @KafkaListener} methods. Each endpoint
+ * Spring Kafka's messaging adapter. The listener container's record message
+ * converter (typically {@code JsonMessageConverter}) converts the
+ * {@code ConsumerRecord} to a {@code Message<?>}. The handler method factory
+ * uses a {@link GenericMessageConverter} with a conversion service to convert
+ * the message payload to the handler method's parameter type. Each endpoint
  * gets a unique id derived from the topic, group id, and handler method so
  * multiple handlers can share a topic or group.</p>
  */
