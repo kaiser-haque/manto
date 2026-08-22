@@ -2,9 +2,9 @@
 
 ## Current day
 
-Day 10 — complete.
+Day 11 — complete.
 
-Next session: Day 11 — retry.
+Next session: Day 12 — headers.
 
 ## Current version
 
@@ -19,6 +19,7 @@ Next session: Day 11 — retry.
 - [x] Producer
 - [x] Listener registration
 - [x] Consumer
+- [x] JSON serialization
 - [ ] Retry
 - [ ] DLT
 - [ ] Idempotency
@@ -29,7 +30,15 @@ Next session: Day 11 — retry.
 
 ## Current task
 
-Day 10 — Manto consumer (Kafka consumption and handler invocation).
+Day 11 — JSON serialization (Jackson-based typed serialization/deserialization).
+
+## Day 11 work
+
+- `manto-kafka`: Added `MantoJsonSerializer` and `MantoJsonDeserializer` for JSON serialization/deserialization using Jackson with JavaTimeModule support. Serialization writes dates as ISO strings (not timestamps). Deserializer supports typed deserialization via constructor (`Class<?>` or `JavaType`) or Kafka config property `manto.deserializer.target.type`. Generic types supported through `JavaType`.
+- `manto-kafka`: Added `MantoDeserializationException` and `MantoSerializationException` for clear error handling. Deserialization exception includes target type and payload preview (truncated to 200 chars) for diagnostics without exposing full sensitive payloads.
+- `manto-kafka`: Added `jackson-datatype-jsr310` dependency for Java time type support.
+- `manto-kafka`: Added unit tests (46 tests total): `MantoJsonSerializerTest` (13 tests), `MantoJsonDeserializerTest` (30 tests), `MantoDeserializationExceptionTest` (1 test), `MantoSerializationExceptionTest` (1 test). Tests cover valid payloads (POJOs, records, nested objects, collections, maps, Java time types), invalid payloads (malformed JSON, type mismatches, missing fields), and error handling (missing target type config, class not found, payload preview truncation).
+- All existing tests pass (`mvn clean verify` — BUILD SUCCESS).
 
 ## Day 10 work
 
@@ -138,9 +147,9 @@ Update this file at the end of every daily session.
 
 ## Tests run
 
-- `mvn -pl manto-kafka -am test` — BUILD SUCCESS, 23 tests (15 core + 23 kafka).
+- `mvn -pl manto-kafka -am test` — BUILD SUCCESS, 46 tests (15 core + 31 kafka).
 - `mvn -pl manto-spring-boot-autoconfigure -am test` — BUILD SUCCESS, 2 tests including the consumer integration test and listener-registration context test.
-- `mvn clean verify` — BUILD SUCCESS, all 6 reactor modules (core 15 + kafka 23 + autoconfigure 2 tests, including the Testcontainers producer and consumer integration tests).
+- `mvn clean verify` — BUILD SUCCESS, all 6 reactor modules (core 15 + kafka 31 + autoconfigure 2 tests, including the Testcontainers producer and consumer integration tests).
 
 ## Known issues
 
@@ -149,4 +158,4 @@ Update this file at the end of every daily session.
 
 ## Next task
 
-Day 11 — retry (configurable retry attempts and exponential backoff). Expected commit message for Day 10: `feat: implement Manto consumer`
+Day 12 — headers (Manto header serialization). Expected commit message for Day 11: `feat: add JSON event serialization`
