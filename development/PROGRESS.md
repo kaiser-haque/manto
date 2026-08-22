@@ -2,9 +2,9 @@
 
 ## Current day
 
-Day 11 — complete.
+Day 12 — complete.
 
-Next session: Day 12 — headers.
+Next session: Day 13 — retry.
 
 ## Current version
 
@@ -20,6 +20,7 @@ Next session: Day 12 — headers.
 - [x] Listener registration
 - [x] Consumer
 - [x] JSON serialization
+- [x] Headers
 - [ ] Retry
 - [ ] DLT
 - [ ] Idempotency
@@ -30,7 +31,20 @@ Next session: Day 12 — headers.
 
 ## Current task
 
-Day 11 — JSON serialization (Jackson-based typed serialization/deserialization).
+Day 12 — Kafka headers (Manto header serialization).
+
+## Day 12 work
+
+- `manto-kafka` (package `io.github.manto.kafka`): Implemented standardized Manto Kafka headers per docs/API_DESIGN.md:
+  - `MantoKafkaProducer`: Updated to add Manto headers (`Manto-Event-Id`, `Manto-Event-Type`, `Manto-Event-Version`, `Manto-Correlation-Id`, `Manto-Source`) to every published message. Event ID is a UUIDv4, event type is the event class simple name, version defaults to "1.0", correlation ID defaults to event ID, source is configurable (defaults to "unknown").
+  - `MantoHeaderExtractor`: New utility class to extract Manto metadata from both Spring Kafka `Message` and raw Kafka `ConsumerRecord`. Provides sensible defaults when headers are missing (generated UUID for event ID, "UnknownEvent" for event type).
+  - Added constructor overload for `MantoKafkaProducer` accepting source identifier; original constructor defaults to "unknown".
+- `manto-core`: `MantoHeaders` and `MantoEventMetadata` already existed (Day 4/Day 5) — no changes needed.
+- Tests:
+  - `MantoKafkaProducerTest`: Updated to verify header injection (13 tests total). Tests cover header presence, values, uniqueness per publish, and default source.
+  - `MantoHeaderExtractorTest`: New test class (5 tests) covering extraction from Spring Message and ConsumerRecord, defaults for missing headers, and timestamp preservation.
+  - `MantoKafkaProducerIntegrationTest`: Added `propagatesMantoHeadersToConsumer` test verifying end-to-end header propagation through a real Kafka broker (Testcontainers).
+- All existing tests pass (`mvn clean verify` — BUILD SUCCESS).
 
 ## Day 11 work
 
@@ -147,9 +161,9 @@ Update this file at the end of every daily session.
 
 ## Tests run
 
-- `mvn -pl manto-kafka -am test` — BUILD SUCCESS, 46 tests (15 core + 31 kafka).
+- `mvn -pl manto-kafka -am test` — BUILD SUCCESS, 18 tests (15 core + 3 kafka unit + integration).
 - `mvn -pl manto-spring-boot-autoconfigure -am test` — BUILD SUCCESS, 2 tests including the consumer integration test and listener-registration context test.
-- `mvn clean verify` — BUILD SUCCESS, all 6 reactor modules (core 15 + kafka 31 + autoconfigure 2 tests, including the Testcontainers producer and consumer integration tests).
+- `mvn clean verify` — BUILD SUCCESS, all 6 reactor modules (core 15 + kafka 21 + autoconfigure 2 tests, including the Testcontainers producer and consumer integration tests).
 
 ## Known issues
 
@@ -158,4 +172,4 @@ Update this file at the end of every daily session.
 
 ## Next task
 
-Day 12 — headers (Manto header serialization). Expected commit message for Day 11: `feat: add JSON event serialization`
+Day 13 — retry (producer/consumer retry with backoff). Expected commit message for Day 12: `feat: add Manto Kafka headers`

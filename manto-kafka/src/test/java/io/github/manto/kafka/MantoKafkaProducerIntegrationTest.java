@@ -2,6 +2,7 @@ package io.github.manto.kafka;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.manto.core.MantoHeaders;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.NewTopic;
@@ -29,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
@@ -62,12 +64,33 @@ class MantoKafkaProducerIntegrationTest {
     void publishesEventToKafka() throws Exception {
         KafkaTemplate<String, Object> kafkaTemplate = new KafkaTemplate<>(producerFactory());
 
-        new MantoKafkaProducer(kafkaTemplate).publish(TOPIC, new OrderCreatedEvent("order-1", 42));
+        new MantoKafkaProducer(kafkaTemplate, "integration-test-source").publish(TOPIC, new OrderCreatedEvent("order-1", 42));
 
         ConsumerRecord<String, String> record = consumeRecord();
         JsonNode payload = objectMapper.readTree(record.value());
         assertEquals("order-1", payload.get("orderId").asText());
         assertEquals(42, payload.get("amount").asLong());
+    }
+
+    @Test
+    void propagatesMantoHeadersToConsumer() throws Exception {
+        KafkaTemplate<String, Object> kafkaTemplate = new KafkaTemplate<>(producerFactory());
+
+        new MantoKafkaProducer(kafkaTemplate, "integration-test-source").publish(TOPIC, new OrderCreatedEvent("order-1", 42));
+
+        ConsumerRecord<String, String> record = consumeRecord();
+
+        String eventId = headerValue(record, MantoHeaders.EVENT_ID);
+        String eventType = headerValue(record, MantoHeaders.EVENT_TYPE);
+        String eventVersion = headerValue(record, MantoHeaders.EVENT_VERSION);
+        String correlationId = headerValue(record, MantoHeaders.CORRELATION_ID);
+        String source = headerValue(record, MantoHeaders.SOURCE);
+
+        assertNotNull(eventId, "Manto-Event-Id header should be present");
+        assertEquals("OrderCreatedEvent", eventType);
+        assertEquals("1.0", eventVersion);
+        assertEquals(eventId, correlationId);
+        assertEquals("integration-test-source", source);
     }
 
     private DefaultKafkaProducerFactory<String, Object> producerFactory() {
@@ -96,5 +119,10 @@ class MantoKafkaProducerIntegrationTest {
         }
         fail("no record received on topic '" + TOPIC + "' within 30 seconds");
         return null;
+    }
+
+    private String headerValue(ConsumerRecord<?, ?> record, String headerName) {
+        org.apache.kafka.common.header.Header header = record.headers().lastHeader(headerName);
+        return header != null ? new String(header.value()) : null;
     }
 }
