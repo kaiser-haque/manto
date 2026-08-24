@@ -73,7 +73,7 @@ class MantoKafkaConsumerIntegrationTest {
         context.refresh();
         context.start();
 
-        kafkaTemplate = context.getBean(KafkaTemplate.class);
+        kafkaTemplate = context.getBean("mantoKafkaTemplate", KafkaTemplate.class);
     }
 
     @AfterAll

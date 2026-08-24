@@ -1,6 +1,10 @@
 package io.github.manto.autoconfigure;
 
 import io.github.manto.core.MantoProducer;
+import io.github.manto.kafka.DefaultDeadLetterHandler;
+import io.github.manto.kafka.DefaultExceptionClassifier;
+import io.github.manto.kafka.DefaultRetryPolicy;
+import io.github.manto.kafka.ExponentialBackoffStrategy;
 import io.github.manto.kafka.KafkaListenerEndpointFactory;
 import io.github.manto.kafka.MantoKafkaProducer;
 import io.github.manto.kafka.MantoListenerDiscoverer;
@@ -38,6 +42,7 @@ import java.util.Map;
  *   <li>{@link KafkaTemplate} - Spring Kafka template for direct use if needed</li>
  *   <li>{@link ConcurrentKafkaListenerContainerFactory} - consumer container factory using Spring's JSON deserializer with type headers</li>
  *   <li>Listener registration infrastructure (validator, discoverer, endpoint factory, registrar)</li>
+ *   <li>Retry and DLT infrastructure abstractions (retry policy, backoff strategy, exception classifier, dead-letter handler)</li>
  * </ul>
  *
  * <p>Configuration is driven by {@link MantoProperties} with prefix {@code manto}.
@@ -81,6 +86,53 @@ public class MantoAutoConfiguration {
         configs.put(JsonDeserializer.TRUSTED_PACKAGES, "*");
         configs.put(JsonDeserializer.USE_TYPE_INFO_HEADERS, true);
         return new DefaultKafkaConsumerFactory<>(configs);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public ProducerFactory<Object, Object> mantoDltProducerFactory(MantoProperties properties) {
+        Map<String, Object> configs = new HashMap<>();
+        configs.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, properties.getKafka().getBootstrapServers());
+        configs.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        configs.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
+        return new DefaultKafkaProducerFactory<>(configs);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public KafkaTemplate<Object, Object> mantoDltKafkaTemplate(ProducerFactory<Object, Object> dltProducerFactory) {
+        return new KafkaTemplate<>(dltProducerFactory);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public DefaultRetryPolicy mantoRetryPolicy(MantoProperties properties) {
+        MantoProperties.Retry retryProps = properties.getRetry();
+        return new DefaultRetryPolicy(retryProps.isEnabled(), retryProps.getMaxAttempts());
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public ExponentialBackoffStrategy mantoBackoffStrategy(MantoProperties properties) {
+        MantoProperties.Retry.Backoff backoffProps = properties.getRetry().getBackoff();
+        return new ExponentialBackoffStrategy(
+                backoffProps.getInitialDelay(),
+                backoffProps.getMultiplier(),
+                backoffProps.getMaxDelay()
+        );
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public DefaultExceptionClassifier mantoExceptionClassifier() {
+        return new DefaultExceptionClassifier();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public DefaultDeadLetterHandler mantoDeadLetterHandler(KafkaTemplate<Object, Object> dltKafkaTemplate,
+                                                            MantoProperties properties) {
+        return new DefaultDeadLetterHandler(dltKafkaTemplate, properties.getDlt().getTopicSuffix());
     }
 
     @Bean

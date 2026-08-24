@@ -2,9 +2,9 @@
 
 ## Current day
 
-Day 14 — complete.
+Day 15 — complete.
 
-Next session: Day 15 — retry with exponential backoff.
+Next session: Day 16 — idempotency.
 
 ## Current version
 
@@ -23,8 +23,8 @@ Next session: Day 15 — retry with exponential backoff.
 - [x] Headers
 - [x] Configuration properties
 - [x] Spring Boot starter auto-configuration
-- [ ] Retry
-- [ ] DLT
+- [x] Retry
+- [x] DLT
 - [ ] Idempotency
 - [ ] Metrics
 - [ ] Integration tests
@@ -33,7 +33,30 @@ Next session: Day 15 — retry with exponential backoff.
 
 ## Current task
 
-Day 14 — Spring Boot starter auto-configuration.
+Day 15 — error handling design and abstractions.
+
+## Day 15 work
+
+- `manto-core` (package `io.github.manto.core`): Added error handling abstractions (no Kafka/Spring dependencies):
+  - `RetryPolicy` interface: defines `isEnabled()` and `maxAttempts()` for configurable retry behavior.
+  - `BackoffStrategy` interface: defines `nextDelay(int attempt)` for backoff calculation between retries.
+  - `ExceptionClassifier` interface: defines `isRetryable(Throwable)` to classify exceptions as transient (retryable) or permanent (non-retryable).
+  - `DeadLetterHandler` interface: defines `handle(MantoRecord, Throwable, int)` for routing failed messages to a dead-letter topic with diagnostic metadata.
+  - `MantoRecord` interface: framework-agnostic representation of a consumed message record (topic, partition, offset, timestamp, key, value, headers).
+  - `MantoHeader` interface: framework-agnostic representation of a message header.
+  - `MantoHeaders`: added DLT-specific header constants (`Manto-DLT-Original-Topic`, `Manto-DLT-Original-Partition`, `Manto-DLT-Original-Offset`, `Manto-DLT-Original-Timestamp`, `Manto-DLT-Exception-Class`, `Manto-DLT-Exception-Message`, `Manto-DLT-Retry-Count`, `Manto-DLT-Failure-Timestamp`, `Manto-DLT-Trace-Id`).
+
+- `manto-kafka` (package `io.github.manto.kafka`): Implemented the error handling abstractions:
+  - `DefaultRetryPolicy`: configuration-backed implementation of `RetryPolicy`.
+  - `ExponentialBackoffStrategy`: exponential backoff with configurable initial delay, multiplier, and maximum delay.
+  - `DefaultExceptionClassifier`: classifies `IllegalArgumentException`, `IllegalStateException`, `NullPointerException`, `SecurityException` as non-retryable; all others as retryable. Supports custom non-retryable types.
+  - `DefaultDeadLetterHandler`: publishes failed messages to a DLT topic (original topic + configurable suffix, default `.DLT`). Preserves original Manto headers and adds diagnostic headers (original topic/partition/offset/timestamp, exception class/message, retry count, failure timestamp, trace ID). Includes `KafkaMantoRecord` adapter for converting Kafka `ConsumerRecord` to `MantoRecord`.
+  - Auto-configuration beans for all retry/DLT abstractions exposed via `MantoAutoConfiguration`.
+
+- Tests:
+  - `manto-core`: Unit tests for all new interfaces (`RetryPolicyTest`, `BackoffStrategyTest`, `ExceptionClassifierTest`, `DeadLetterHandlerTest`).
+  - `manto-kafka`: Unit tests for all implementations (`DefaultRetryPolicyTest`, `ExponentialBackoffStrategyTest`, `DefaultExceptionClassifierTest`, `DefaultDeadLetterHandlerTest` with Mockito).
+  - All 76 tests pass (`mvn clean verify` — BUILD SUCCESS): core 19 + kafka 57 + autoconfigure 13 (including Testcontainers consumer integration test).
 
 ## Day 14 work
 
@@ -179,9 +202,9 @@ Update this file at the end of every daily session.
 
 ## Tests run
 
-- `mvn -pl manto-kafka -am test` — BUILD SUCCESS, 54 tests (15 core + 39 kafka unit + integration).
+- `mvn -pl manto-kafka -am test` — BUILD SUCCESS, 77 tests (19 core + 58 kafka unit + integration).
 - `mvn -pl manto-spring-boot-autoconfigure -am test` — BUILD SUCCESS, 13 tests (11 properties + consumer integration + listener registration context).
-- `mvn clean verify` — BUILD SUCCESS, all 6 reactor modules (core 15 + kafka 54 + autoconfigure 13 tests, including Testcontainers producer and consumer integration tests).
+- `mvn clean verify` — BUILD SUCCESS, all 6 reactor modules (core 19 + kafka 77 + autoconfigure 13 tests, including Testcontainers producer and consumer integration tests).
 
 ## Known issues
 
@@ -190,4 +213,4 @@ Update this file at the end of every daily session.
 
 ## Next task
 
-Day 15 — retry with exponential backoff. Expected commit message for Day 14: `feat: add Spring Boot starter auto-configuration`
+Day 16 — idempotency. Expected commit message for Day 15: `feat: add error handling abstractions`
