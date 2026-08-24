@@ -2,9 +2,9 @@
 
 ## Current day
 
-Day 12 — complete.
+Day 13 — complete.
 
-Next session: Day 13 — retry.
+Next session: Day 14 — producer/consumer factory auto-configuration.
 
 ## Current version
 
@@ -21,6 +21,7 @@ Next session: Day 13 — retry.
 - [x] Consumer
 - [x] JSON serialization
 - [x] Headers
+- [x] Configuration properties
 - [ ] Retry
 - [ ] DLT
 - [ ] Idempotency
@@ -31,7 +32,24 @@ Next session: Day 13 — retry.
 
 ## Current task
 
-Day 12 — Kafka headers (Manto header serialization).
+Day 13 — Spring Boot configuration properties.
+
+## Day 13 work
+
+- `manto-spring-boot-autoconfigure` (package `io.github.manto.autoconfigure`): Implemented Manto configuration properties per docs/CONFIGURATION.md:
+  - `MantoProperties`: Root configuration class with `@ConfigurationProperties(prefix = "manto")` and nested property classes.
+  - `manto.kafka`: Kafka bootstrap servers (default `localhost:9092`).
+  - `manto.retry`: Retry configuration structure (enabled, max-attempts 1-100 default 3, backoff with initial-delay, multiplier 1.0-10.0 default 2.0, max-delay). Behavior implementation deferred to future day.
+  - `manto.dlt`: Dead Letter Topic configuration (enabled default true, topic-suffix default `.DLT`).
+  - `manto.idempotency`: Idempotency configuration (enabled default true).
+  - `manto.observability`: Observability configuration (enabled default true).
+  - Validation via Jakarta Bean Validation annotations (`@NotBlank`, `@Min`, `@Max`, `@DecimalMin`, `@DecimalMax`, `@NotNull`, `@Valid`).
+  - Added `jakarta.validation-api` dependency and `hibernate-validator` + `jakarta.el` for test scope.
+  - Updated `MantoAutoConfiguration` with `@EnableConfigurationProperties(MantoProperties.class)`.
+- Tests:
+  - `MantoPropertiesTest`: 11 tests covering defaults, property binding (Kafka, retry, DLT, idempotency, observability), and validation (bootstrap servers not blank, max-attempts bounds, multiplier bounds).
+  - Existing tests `MantoListenerRegistrationContextTest` and `MantoKafkaConsumerIntegrationTest` continue to pass with auto-configured properties.
+- All existing tests pass (`mvn clean verify` — BUILD SUCCESS).
 
 ## Day 12 work
 
@@ -161,9 +179,9 @@ Update this file at the end of every daily session.
 
 ## Tests run
 
-- `mvn -pl manto-kafka -am test` — BUILD SUCCESS, 18 tests (15 core + 3 kafka unit + integration).
-- `mvn -pl manto-spring-boot-autoconfigure -am test` — BUILD SUCCESS, 2 tests including the consumer integration test and listener-registration context test.
-- `mvn clean verify` — BUILD SUCCESS, all 6 reactor modules (core 15 + kafka 21 + autoconfigure 2 tests, including the Testcontainers producer and consumer integration tests).
+- `mvn -pl manto-kafka -am test` — BUILD SUCCESS, 54 tests (15 core + 39 kafka unit + integration).
+- `mvn -pl manto-spring-boot-autoconfigure -am test` — BUILD SUCCESS, 13 tests (11 properties + consumer integration + listener registration context).
+- `mvn clean verify` — BUILD SUCCESS, all 6 reactor modules (core 15 + kafka 54 + autoconfigure 13 tests, including Testcontainers producer and consumer integration tests).
 
 ## Known issues
 
@@ -172,4 +190,4 @@ Update this file at the end of every daily session.
 
 ## Next task
 
-Day 13 — retry (producer/consumer retry with backoff). Expected commit message for Day 12: `feat: add Manto Kafka headers`
+Day 14 — producer/consumer factory auto-configuration. Expected commit message for Day 13: `feat: add Manto configuration properties`

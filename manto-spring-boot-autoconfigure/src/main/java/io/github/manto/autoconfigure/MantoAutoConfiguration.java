@@ -8,6 +8,7 @@ import io.github.manto.kafka.MethodKafkaListenerEndpointFactory;
 import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.kafka.config.KafkaListenerContainerFactory;
 
@@ -21,6 +22,7 @@ import org.springframework.kafka.config.KafkaListenerContainerFactory;
  */
 @AutoConfiguration
 @ConditionalOnClass(KafkaListenerContainerFactory.class)
+@EnableConfigurationProperties(MantoProperties.class)
 public class MantoAutoConfiguration {
 
     @Bean
