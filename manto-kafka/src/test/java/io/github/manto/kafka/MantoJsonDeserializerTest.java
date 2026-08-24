@@ -179,17 +179,17 @@ class MantoJsonDeserializerTest {
         }
 
         @Test
-        @DisplayName("Throws MantoDeserializationException when target type not configured")
-        void throwsExceptionWhenTargetTypeNotConfigured() {
+        @DisplayName("Deserializes to Map when target type not configured")
+        void deserializesToMapWhenTargetTypeNotConfigured() {
             deserializer = new MantoJsonDeserializer();
-            byte[] data = "{}".getBytes();
+            byte[] data = "{\"id\":\"event-1\",\"value\":42}".getBytes();
 
-            MantoDeserializationException ex = assertThrows(MantoDeserializationException.class,
-                    () -> deserializer.deserialize("test-topic", data));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> result = (Map<String, Object>) deserializer.deserialize("test-topic", data);
 
-            assertEquals(Object.class, ex.getTargetType());
-            assertNotNull(ex.getCause());
-            assertTrue(ex.getCause().getMessage().contains("Target type not configured"));
+            assertNotNull(result);
+            assertEquals("event-1", result.get("id"));
+            assertEquals(42, result.get("value"));
         }
 
         @Test

@@ -6,7 +6,6 @@ import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.producer.ProducerConfig;
-import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterAll;
@@ -16,22 +15,17 @@ import org.springframework.context.annotation.AnnotationConfigApplicationContext
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.kafka.annotation.EnableKafka;
-import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
-import org.springframework.kafka.core.ConsumerFactory;
-import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
-import org.springframework.kafka.support.serializer.JsonDeserializer;
 import org.springframework.kafka.support.serializer.JsonSerializer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.kafka.KafkaContainer;
 import org.testcontainers.utility.DockerImageName;
 
-import java.time.Duration;
-import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -72,10 +66,14 @@ class MantoKafkaConsumerIntegrationTest {
             admin.createTopics(List.of(new NewTopic(TOPIC, 1, (short) 1))).all().get();
         }
 
-        context = new AnnotationConfigApplicationContext(TestConfig.class);
+        context = new AnnotationConfigApplicationContext();
+        context.getEnvironment().getPropertySources().addFirst(
+                new org.springframework.core.env.MapPropertySource("mantoTestProps", Map.of("manto.kafka.bootstrap-servers", KAFKA.getBootstrapServers())));
+        context.register(TestConfig.class);
+        context.refresh();
         context.start();
 
-        kafkaTemplate = new KafkaTemplate<>(producerFactory());
+        kafkaTemplate = context.getBean(KafkaTemplate.class);
     }
 
     @AfterAll
@@ -106,39 +104,10 @@ class MantoKafkaConsumerIntegrationTest {
         assertEquals(42, receivedEventResult.amount());
     }
 
-    private static ProducerFactory<String, Object> producerFactory() {
-        Map<String, Object> config = Map.of(
-                ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, KAFKA.getBootstrapServers(),
-                ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class,
-                ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
-        return new DefaultKafkaProducerFactory<>(config);
-    }
-
     @Configuration
     @EnableKafka
     @Import(MantoAutoConfiguration.class)
     static class TestConfig {
-
-        @Bean
-        ConcurrentKafkaListenerContainerFactory<String, Object> kafkaListenerContainerFactory(
-                ConsumerFactory<String, Object> consumerFactory) {
-            ConcurrentKafkaListenerContainerFactory<String, Object> factory =
-                    new ConcurrentKafkaListenerContainerFactory<>();
-            factory.setConsumerFactory(consumerFactory);
-            return factory;
-        }
-
-        @Bean
-        ConsumerFactory<String, Object> consumerFactory() {
-            Map<String, Object> config = Map.of(
-                    org.apache.kafka.clients.consumer.ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, KAFKA.getBootstrapServers(),
-                    org.apache.kafka.clients.consumer.ConsumerConfig.GROUP_ID_CONFIG, GROUP_ID,
-                    org.apache.kafka.clients.consumer.ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest",
-                    org.apache.kafka.clients.consumer.ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
-                    org.apache.kafka.clients.consumer.ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class,
-                    JsonDeserializer.TRUSTED_PACKAGES, "io.github.manto.autoconfigure");
-            return new DefaultKafkaConsumerFactory<>(config);
-        }
 
         @Bean
         TestHandler testHandler() {
