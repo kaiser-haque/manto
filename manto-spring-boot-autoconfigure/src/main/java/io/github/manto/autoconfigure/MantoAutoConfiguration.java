@@ -1,6 +1,7 @@
 package io.github.manto.autoconfigure;
 
 import io.github.manto.core.MantoProducer;
+import io.github.manto.core.RetryPolicy;
 import io.github.manto.kafka.DefaultDeadLetterHandler;
 import io.github.manto.kafka.DefaultExceptionClassifier;
 import io.github.manto.kafka.DefaultRetryPolicy;
@@ -27,8 +28,11 @@ import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
+import org.springframework.kafka.listener.CommonErrorHandler;
+import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
 import org.springframework.kafka.support.serializer.JsonSerializer;
+import org.springframework.util.backoff.ExponentialBackOff;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -138,9 +142,23 @@ public class MantoAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public ConcurrentKafkaListenerContainerFactory<String, Object> kafkaListenerContainerFactory(
-            ConsumerFactory<String, Object> consumerFactory) {
+            ConsumerFactory<String, Object> consumerFactory,
+            RetryPolicy retryPolicy,
+            ExponentialBackoffStrategy backoffStrategy) {
         ConcurrentKafkaListenerContainerFactory<String, Object> factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory);
+
+        if (retryPolicy.isEnabled()) {
+            ExponentialBackOff backOff = new ExponentialBackOff();
+            backOff.setInitialInterval(backoffStrategy.getInitialDelay().toMillis());
+            backOff.setMultiplier(backoffStrategy.getMultiplier());
+            backOff.setMaxInterval(backoffStrategy.getMaxDelay().toMillis());
+            backOff.setMaxAttempts(Math.max(0, retryPolicy.maxAttempts() - 1));
+
+            CommonErrorHandler errorHandler = new DefaultErrorHandler(backOff);
+            factory.setCommonErrorHandler(errorHandler);
+        }
+
         return factory;
     }
 

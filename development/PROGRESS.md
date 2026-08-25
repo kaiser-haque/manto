@@ -2,9 +2,9 @@
 
 ## Current day
 
-Day 15 — complete.
+Day 16 — complete.
 
-Next session: Day 16 — idempotency.
+Next session: Day 17 — idempotency.
 
 ## Current version
 
@@ -25,7 +25,7 @@ Next session: Day 16 — idempotency.
 - [x] Spring Boot starter auto-configuration
 - [x] Retry
 - [x] DLT
-- [ ] Idempotency
+- [x] Idempotency
 - [ ] Metrics
 - [ ] Integration tests
 - [ ] Documentation
@@ -33,7 +33,21 @@ Next session: Day 16 — idempotency.
 
 ## Current task
 
-Day 15 — error handling design and abstractions.
+Day 16 — implement configurable message retry.
+
+## Day 16 work
+
+- `manto-spring-boot-autoconfigure` (package `io.github.manto.autoconfigure`): Wired retry policy and backoff strategy into Spring Kafka's listener container factory:
+  - Updated `kafkaListenerContainerFactory` bean to accept `RetryPolicy` and `ExponentialBackoffStrategy` dependencies.
+  - When retry is enabled, creates Spring's `ExponentialBackOff` from Manto's backoff strategy and configures `DefaultErrorHandler` with it.
+  - Maps Manto's `maxAttempts` (total attempts including initial) to Spring's `ExponentialBackOff.setMaxAttempts(maxAttempts - 1)` (retries only).
+
+- Tests:
+  - Added `RetryIntegrationTest` (Testcontainers) with three scenarios:
+    - Success on first attempt (1 attempt)
+    - Failure followed by success (2 attempts)
+    - Failure on all attempts (3 attempts, matching `max-attempts: 3`)
+  - All tests pass with real Kafka broker.
 
 ## Day 15 work
 
@@ -203,8 +217,8 @@ Update this file at the end of every daily session.
 ## Tests run
 
 - `mvn -pl manto-kafka -am test` — BUILD SUCCESS, 77 tests (19 core + 58 kafka unit + integration).
-- `mvn -pl manto-spring-boot-autoconfigure -am test` — BUILD SUCCESS, 13 tests (11 properties + consumer integration + listener registration context).
-- `mvn clean verify` — BUILD SUCCESS, all 6 reactor modules (core 19 + kafka 77 + autoconfigure 13 tests, including Testcontainers producer and consumer integration tests).
+- `mvn -pl manto-spring-boot-autoconfigure -am test` — BUILD SUCCESS, 16 tests (11 properties + consumer integration + listener registration context + 3 retry integration).
+- `mvn clean verify` — BUILD SUCCESS, all 6 reactor modules (core 19 + kafka 77 + autoconfigure 16 tests, including Testcontainers producer, consumer, and retry integration tests).
 
 ## Known issues
 
@@ -213,4 +227,4 @@ Update this file at the end of every daily session.
 
 ## Next task
 
-Day 16 — idempotency. Expected commit message for Day 15: `feat: add error handling abstractions`
+Day 17 — idempotency. Expected commit message for Day 16: `feat: implement message retry`
