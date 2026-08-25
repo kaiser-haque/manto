@@ -34,6 +34,10 @@ public class DefaultExceptionClassifier implements ExceptionClassifier {
         this.nonRetryableTypes = Set.copyOf(nonRetryableTypes);
     }
 
+    public Set<Class<? extends Throwable>> getNonRetryableTypes() {
+        return nonRetryableTypes;
+    }
+
     @Override
     public boolean isRetryable(Throwable throwable) {
         if (throwable == null) {

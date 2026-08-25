@@ -2,9 +2,9 @@
 
 ## Current day
 
-Day 17 — complete.
+Day 18 — complete.
 
-Next session: Day 18 — exception classification.
+Next session: Day 19 — metrics.
 
 ## Current version
 
@@ -26,6 +26,7 @@ Next session: Day 18 — exception classification.
 - [x] Retry
 - [x] DLT
 - [x] Idempotency
+- [x] Exception classification
 - [ ] Metrics
 - [ ] Integration tests
 - [ ] Documentation
@@ -33,22 +34,25 @@ Next session: Day 18 — exception classification.
 
 ## Current task
 
-Day 17 — implement configurable exponential backoff.
+Day 18 — exception classification.
 
-## Day 17 work
+## Day 18 work
 
-- `manto-kafka` (package `io.github.manto.kafka`): Exponential backoff strategy already implemented as part of Day 16:
-  - `ExponentialBackoffStrategy`: implements `BackoffStrategy` interface with configurable initial delay, multiplier, and maximum delay.
-  - Formula: `min(initialDelay * multiplier^(attempt-1), maxDelay)` for attempt n.
-  - Defaults: initialDelay=1000ms, multiplier=2.0, maxDelay=30000ms (progression: 1s, 2s, 4s, 8s... capped at 30s).
-  - Wired into Spring Kafka's `ExponentialBackOff` in `MantoAutoConfiguration`.
+- `manto-kafka` (package `io.github.manto.kafka`): Connected the existing `DefaultExceptionClassifier` to Spring Kafka's `DefaultErrorHandler`:
+  - Added `getNonRetryableTypes()` getter to `DefaultExceptionClassifier` to expose configured non-retryable exception types.
+  - Updated `MantoAutoConfiguration.kafkaListenerContainerFactory` to accept `DefaultExceptionClassifier` and configure Spring Kafka's `DefaultErrorHandler` with the non-retryable exception types via `addNotRetryableExceptions()`.
+  - Default non-retryable types: `IllegalArgumentException`, `IllegalStateException`, `NullPointerException`, `SecurityException` (permanent failures like invalid data, programming errors, auth failures). All other exceptions are retryable (transient failures).
+  - Users can customize by providing their own `DefaultExceptionClassifier` bean with custom non-retryable types.
 
 - Tests:
-  - `ExponentialBackoffStrategyTest` (6 tests): verifies exponential progression, max delay capping, input validation (attempt >= 1, positive delays, multiplier >= 1.0).
-  - `BackoffStrategyTest` in manto-core (1 test): verifies interface contract.
-  - All 112 tests pass (`mvn clean verify` — BUILD SUCCESS): core 19 + kafka 77 + autoconfigure 16 (including Testcontainers retry integration tests).
+  - `DefaultExceptionClassifierTest` (7 tests): verifies classification of retryable/non-retryable exceptions, null handling, and custom non-retryable types.
+  - Added `ExceptionClassificationIntegrationTest` (3 Testcontainers tests):
+    - `nonRetryableExceptionShouldBypassRetriesAndGoToDlt`: verifies `IllegalArgumentException` bypasses retries (1 attempt).
+    - `retryableExceptionShouldRetry`: verifies `RuntimeException` retries (fail twice, succeed on 3rd attempt).
+    - `defaultBehaviorRuntimeExceptionIsRetryable`: verifies `RuntimeException` is retryable by default (fail once, succeed on 2nd attempt).
+  - All 115 tests pass (`mvn clean verify` — BUILD SUCCESS): core 19 + kafka 77 + autoconfigure 19 (including Testcontainers exception classification integration tests).
 
-## Day 16 work
+## Day 17 work
 
 - `manto-spring-boot-autoconfigure` (package `io.github.manto.autoconfigure`): Wired retry policy and backoff strategy into Spring Kafka's listener container factory:
   - Updated `kafkaListenerContainerFactory` bean to accept `RetryPolicy` and `ExponentialBackoffStrategy` dependencies.
@@ -230,8 +234,8 @@ Update this file at the end of every daily session.
 ## Tests run
 
 - `mvn -pl manto-kafka -am test` — BUILD SUCCESS, 77 tests (19 core + 58 kafka unit + integration).
-- `mvn -pl manto-spring-boot-autoconfigure -am test` — BUILD SUCCESS, 16 tests (11 properties + consumer integration + listener registration context + 3 retry integration).
-- `mvn clean verify` — BUILD SUCCESS, all 6 reactor modules (core 19 + kafka 77 + autoconfigure 16 tests, including Testcontainers producer, consumer, and retry integration tests).
+- `mvn -pl manto-spring-boot-autoconfigure -am test` — BUILD SUCCESS, 19 tests (11 properties + consumer integration + listener registration context + 3 retry integration + 3 exception classification integration).
+- `mvn clean verify` — BUILD SUCCESS, all 6 reactor modules (core 19 + kafka 77 + autoconfigure 19 tests, including Testcontainers producer, consumer, retry, and exception classification integration tests).
 
 ## Known issues
 
@@ -240,4 +244,4 @@ Update this file at the end of every daily session.
 
 ## Next task
 
-Day 18 — exception classification. Expected commit message for Day 17: `feat: add exponential retry backoff`
+Day 19 — metrics. Expected commit message for Day 18: `feat: classify retryable exceptions`

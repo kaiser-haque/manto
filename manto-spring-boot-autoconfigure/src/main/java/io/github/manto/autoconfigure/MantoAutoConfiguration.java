@@ -36,6 +36,7 @@ import org.springframework.util.backoff.ExponentialBackOff;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Auto-configuration for Manto producer, consumer, and listener registration.
@@ -144,7 +145,8 @@ public class MantoAutoConfiguration {
     public ConcurrentKafkaListenerContainerFactory<String, Object> kafkaListenerContainerFactory(
             ConsumerFactory<String, Object> consumerFactory,
             RetryPolicy retryPolicy,
-            ExponentialBackoffStrategy backoffStrategy) {
+            ExponentialBackoffStrategy backoffStrategy,
+            DefaultExceptionClassifier exceptionClassifier) {
         ConcurrentKafkaListenerContainerFactory<String, Object> factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory);
 
@@ -155,11 +157,22 @@ public class MantoAutoConfiguration {
             backOff.setMaxInterval(backoffStrategy.getMaxDelay().toMillis());
             backOff.setMaxAttempts(Math.max(0, retryPolicy.maxAttempts() - 1));
 
-            CommonErrorHandler errorHandler = new DefaultErrorHandler(backOff);
+            DefaultErrorHandler errorHandler = new DefaultErrorHandler(backOff);
+            configureExceptionClassifier(errorHandler, exceptionClassifier);
             factory.setCommonErrorHandler(errorHandler);
         }
 
         return factory;
+    }
+
+    private void configureExceptionClassifier(DefaultErrorHandler errorHandler,
+                                              DefaultExceptionClassifier exceptionClassifier) {
+        Set<Class<? extends Throwable>> nonRetryableTypes = exceptionClassifier.getNonRetryableTypes();
+        for (Class<? extends Throwable> type : nonRetryableTypes) {
+            if (Exception.class.isAssignableFrom(type)) {
+                errorHandler.addNotRetryableExceptions(type.asSubclass(Exception.class));
+            }
+        }
     }
 
     @Bean
