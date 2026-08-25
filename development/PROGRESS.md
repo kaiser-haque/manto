@@ -2,9 +2,9 @@
 
 ## Current day
 
-Day 16 — complete.
+Day 17 — complete.
 
-Next session: Day 17 — idempotency.
+Next session: Day 18 — exception classification.
 
 ## Current version
 
@@ -33,7 +33,20 @@ Next session: Day 17 — idempotency.
 
 ## Current task
 
-Day 16 — implement configurable message retry.
+Day 17 — implement configurable exponential backoff.
+
+## Day 17 work
+
+- `manto-kafka` (package `io.github.manto.kafka`): Exponential backoff strategy already implemented as part of Day 16:
+  - `ExponentialBackoffStrategy`: implements `BackoffStrategy` interface with configurable initial delay, multiplier, and maximum delay.
+  - Formula: `min(initialDelay * multiplier^(attempt-1), maxDelay)` for attempt n.
+  - Defaults: initialDelay=1000ms, multiplier=2.0, maxDelay=30000ms (progression: 1s, 2s, 4s, 8s... capped at 30s).
+  - Wired into Spring Kafka's `ExponentialBackOff` in `MantoAutoConfiguration`.
+
+- Tests:
+  - `ExponentialBackoffStrategyTest` (6 tests): verifies exponential progression, max delay capping, input validation (attempt >= 1, positive delays, multiplier >= 1.0).
+  - `BackoffStrategyTest` in manto-core (1 test): verifies interface contract.
+  - All 112 tests pass (`mvn clean verify` — BUILD SUCCESS): core 19 + kafka 77 + autoconfigure 16 (including Testcontainers retry integration tests).
 
 ## Day 16 work
 
@@ -227,4 +240,4 @@ Update this file at the end of every daily session.
 
 ## Next task
 
-Day 17 — idempotency. Expected commit message for Day 16: `feat: implement message retry`
+Day 18 — exception classification. Expected commit message for Day 17: `feat: add exponential retry backoff`
