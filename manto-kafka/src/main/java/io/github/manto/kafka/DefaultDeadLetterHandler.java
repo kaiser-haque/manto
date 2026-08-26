@@ -55,7 +55,11 @@ public class DefaultDeadLetterHandler implements DeadLetterHandler {
                     record.value(),
                     buildHeaders(record, exception, retryCount)
             );
-            kafkaTemplate.send(dltTopic, dltRecord);
+            try {
+                kafkaTemplate.send(dltTopic, dltRecord).get(10, java.util.concurrent.TimeUnit.SECONDS);
+            } catch (Exception e) {
+                throw new IllegalStateException("Failed to publish message to DLT topic: " + dltTopic, e);
+            }
         }
     }
 
@@ -79,7 +83,11 @@ public class DefaultDeadLetterHandler implements DeadLetterHandler {
                 buildHeaders(record, exception, retryCount)
         );
 
-        kafkaTemplate.send(dltTopic, dltRecord);
+        try {
+            kafkaTemplate.send(dltTopic, dltRecord).get(10, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to publish message to DLT topic: " + dltTopic, e);
+        }
     }
 
     private RecordHeaders buildHeaders(MantoRecord<?, ?> record, Throwable exception, int retryCount) {

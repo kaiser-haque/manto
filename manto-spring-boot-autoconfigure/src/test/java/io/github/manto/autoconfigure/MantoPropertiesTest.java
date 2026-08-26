@@ -44,7 +44,7 @@ class MantoPropertiesTest {
         assertEquals(2.0, properties.getRetry().getBackoff().getMultiplier());
         assertEquals(Duration.ofMillis(30000), properties.getRetry().getBackoff().getMaxDelay());
 
-        assertTrue(properties.getDlt().isEnabled());
+        assertFalse(properties.getDlt().isEnabled());
         assertEquals(".DLT", properties.getDlt().getTopicSuffix());
 
         assertTrue(properties.getIdempotency().isEnabled());

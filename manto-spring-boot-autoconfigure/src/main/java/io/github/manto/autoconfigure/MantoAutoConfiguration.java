@@ -7,6 +7,7 @@ import io.github.manto.kafka.DefaultExceptionClassifier;
 import io.github.manto.kafka.DefaultRetryPolicy;
 import io.github.manto.kafka.ExponentialBackoffStrategy;
 import io.github.manto.kafka.KafkaListenerEndpointFactory;
+import io.github.manto.kafka.MantoDeadLetterPublishingRecoverer;
 import io.github.manto.kafka.MantoKafkaProducer;
 import io.github.manto.kafka.MantoListenerDiscoverer;
 import io.github.manto.kafka.MantoListenerRegistrar;
@@ -146,7 +147,10 @@ public class MantoAutoConfiguration {
             ConsumerFactory<String, Object> consumerFactory,
             RetryPolicy retryPolicy,
             ExponentialBackoffStrategy backoffStrategy,
-            DefaultExceptionClassifier exceptionClassifier) {
+            DefaultExceptionClassifier exceptionClassifier,
+            DefaultDeadLetterHandler deadLetterHandler,
+            KafkaTemplate<Object, Object> dltKafkaTemplate,
+            MantoProperties properties) {
         ConcurrentKafkaListenerContainerFactory<String, Object> factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory);
 
@@ -157,7 +161,14 @@ public class MantoAutoConfiguration {
             backOff.setMaxInterval(backoffStrategy.getMaxDelay().toMillis());
             backOff.setMaxAttempts(Math.max(0, retryPolicy.maxAttempts() - 1));
 
-            DefaultErrorHandler errorHandler = new DefaultErrorHandler(backOff);
+            DefaultErrorHandler errorHandler;
+            if (properties.getDlt().isEnabled()) {
+                MantoDeadLetterPublishingRecoverer recoverer =
+                        new MantoDeadLetterPublishingRecoverer(deadLetterHandler, exceptionClassifier, retryPolicy, dltKafkaTemplate, properties.getDlt().getTopicSuffix());
+                errorHandler = new DefaultErrorHandler(recoverer, backOff);
+            } else {
+                errorHandler = new DefaultErrorHandler(backOff);
+            }
             configureExceptionClassifier(errorHandler, exceptionClassifier);
             factory.setCommonErrorHandler(errorHandler);
         }

@@ -176,7 +176,7 @@ public class MantoProperties {
      */
     public static class Dlt {
 
-        private boolean enabled = true;
+        private boolean enabled = false;
 
         private String topicSuffix = ".DLT";
 
