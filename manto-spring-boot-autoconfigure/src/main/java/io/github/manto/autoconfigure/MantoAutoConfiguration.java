@@ -1,11 +1,13 @@
 package io.github.manto.autoconfigure;
 
+import io.github.manto.core.IdempotencyStore;
 import io.github.manto.core.MantoProducer;
 import io.github.manto.core.RetryPolicy;
 import io.github.manto.kafka.DefaultDeadLetterHandler;
 import io.github.manto.kafka.DefaultExceptionClassifier;
 import io.github.manto.kafka.DefaultRetryPolicy;
 import io.github.manto.kafka.ExponentialBackoffStrategy;
+import io.github.manto.kafka.InMemoryIdempotencyStore;
 import io.github.manto.kafka.KafkaListenerEndpointFactory;
 import io.github.manto.kafka.MantoDeadLetterPublishingRecoverer;
 import io.github.manto.kafka.MantoKafkaProducer;
@@ -134,11 +136,17 @@ public class MantoAutoConfiguration {
         return new DefaultExceptionClassifier();
     }
 
-    @Bean
+@Bean
     @ConditionalOnMissingBean
     public DefaultDeadLetterHandler mantoDeadLetterHandler(KafkaTemplate<Object, Object> dltKafkaTemplate,
-                                                            MantoProperties properties) {
+                                                           MantoProperties properties) {
         return new DefaultDeadLetterHandler(dltKafkaTemplate, properties.getDlt().getTopicSuffix());
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public IdempotencyStore mantoIdempotencyStore() {
+        return new InMemoryIdempotencyStore();
     }
 
     @Bean

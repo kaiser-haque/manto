@@ -2,9 +2,9 @@
 
 ## Current day
 
-Day 20 — DLT metadata enhancement.
+Day 21 — Idempotency.
 
-Next session: Day 21 — metrics.
+Next session: Day 22 — metrics.
 
 ## Current version
 
@@ -35,7 +35,17 @@ Next session: Day 21 — metrics.
 
 ## Current task
 
-Day 20 — DLT metadata enhancement.
+Day 21 — Idempotency.
+
+## Day 21 work
+
+- `manto-kafka` (package `io.github.manto.kafka`): Added `InMemoryIdempotencyStore` — thread-safe in-memory implementation of `IdempotencyStore` using `ConcurrentHashMap`. Documented as **not suitable for multi-instance production deployments** (per ADR-005); external stores (Redis, database) can be added later by implementing the `IdempotencyStore` interface.
+- `manto-spring-boot-autoconfigure`: Added `mantoIdempotencyStore` bean to `MantoAutoConfiguration` with `@ConditionalOnMissingBean` for user overrides.
+- Configuration: Idempotency controlled via `manto.idempotency.enabled` (default `true`).
+
+- Tests:
+  - `InMemoryIdempotencyStoreTest` (17 tests): covers basic operations (isProcessed/markProcessed), idempotency, multiple events, empty event ID, and concurrency (10 repeated concurrent access tests + concurrent mark/check test with 50 threads).
+  - All unit tests pass (`mvn test` — BUILD SUCCESS): core 19 + kafka 94 + autoconfigure 16 (including Testcontainers integration tests).
 
 ## Day 20 work
 
@@ -251,9 +261,9 @@ Update this file at the end of every daily session.
 
 ## Tests run
 
-- `mvn -pl manto-kafka -am test` — BUILD SUCCESS, 77 unit tests (19 core + 58 kafka unit).
-- `mvn -pl manto-spring-boot-autoconfigure -am test` — BUILD SUCCESS, 13 unit tests (11 properties + listener registration context).
-- `mvn clean verify` — BUILD SUCCESS for unit tests across all 6 reactor modules (core 19 + kafka 77 + autoconfigure 13). Integration tests with Testcontainers require Docker.
+- `mvn -pl manto-kafka -am test` — BUILD SUCCESS, 94 unit tests (19 core + 75 kafka unit).
+- `mvn -pl manto-spring-boot-autoconfigure -am test` — BUILD SUCCESS, 16 unit tests (11 properties + listener registration context + 4 integration).
+- `mvn clean verify` — BUILD SUCCESS for unit tests across all 6 reactor modules (core 19 + kafka 94 + autoconfigure 16). Integration tests with Testcontainers require Docker.
 
 ## Known issues
 
@@ -263,4 +273,4 @@ Update this file at the end of every daily session.
 
 ## Next task
 
-Day 21 — metrics. Expected commit message for Day 20: `feat: enhance DLT records with diagnostic metadata`
+Day 22 — metrics. Expected commit message for Day 21: `feat: add idempotency support`
