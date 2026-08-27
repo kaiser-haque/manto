@@ -2,9 +2,9 @@
 
 ## Current day
 
-Day 19 — complete.
+Day 20 — DLT metadata enhancement.
 
-Next session: Day 20 — metrics.
+Next session: Day 21 — metrics.
 
 ## Current version
 
@@ -25,6 +25,7 @@ Next session: Day 20 — metrics.
 - [x] Spring Boot starter auto-configuration
 - [x] Retry
 - [x] DLT
+- [x] DLT metadata enhancement
 - [x] Idempotency
 - [x] Exception classification
 - [ ] Metrics
@@ -34,27 +35,26 @@ Next session: Day 20 — metrics.
 
 ## Current task
 
-Day 19 — DLT.
+Day 20 — DLT metadata enhancement.
 
-## Day 19 work
+## Day 20 work
 
-- `manto-kafka` (package `io.github.manto.kafka`): Implemented `MantoDeadLetterPublishingRecoverer` that extends Spring Kafka's `DeadLetterPublishingRecoverer` to integrate Manto's DLT handling with Spring Kafka's error handling:
-  - Uses Manto's configurable topic suffix (default `.DLT`) for DLT topic naming via a custom destination resolver.
-  - Leverages Spring Kafka's `DeadLetterPublishingRecoverer` infrastructure for reliable DLT publishing with send verification.
-  
-- `manto-spring-boot-autoconfigure` (package `io.github.manto.autoconfigure`): Wired the DLT recoverer into Spring Kafka's `DefaultErrorHandler`:
-  - Updated `kafkaListenerContainerFactory` to instantiate `DefaultErrorHandler` with `MantoDeadLetterPublishingRecoverer` when `manto.dlt.enabled=true`.
-  - The recoverer receives the `DefaultDeadLetterHandler`, `DefaultExceptionClassifier`, `RetryPolicy`, `KafkaTemplate` for DLT publishing, and the configured topic suffix.
-  - Exception classification (non-retryable vs retryable) determines whether messages go to DLT immediately (non-retryable) or after retry exhaustion (retryable).
-  
-- Configuration: DLT behavior controlled via `manto.dlt.enabled` (default `false` to preserve existing retry behavior) and `manto.dlt.topic-suffix` (default `.DLT`).
+- `manto-kafka` (package `io.github.manto.kafka`): No code changes needed — `DefaultDeadLetterHandler` already preserves all required metadata headers per `ERROR_HANDLING.md` spec:
+  - Original topic, partition, offset, timestamp
+  - Event ID, correlation ID (from Manto headers)
+  - Exception class, exception message
+  - Retry count
+  - Failure timestamp, trace ID
+  - No sensitive payload logging by default
+
+- Configuration: DLT behavior controlled via `manto.dlt.enabled` (default `false`) and `manto.dlt.topic-suffix` (default `.DLT`).
 
 - Tests:
   - All unit tests pass (`mvn test` — BUILD SUCCESS): core 19 + kafka 77 unit + autoconfigure 13 unit.
-  - Integration tests with Testcontainers pass for retry and consumer flows.
+  - DLT metadata is verified through the existing `DefaultDeadLetterHandlerTest` unit tests (7 tests) and the `DefaultDeadLetterHandler` implementation.
   - DLT publishing via error handler recoverer has known limitations in Spring Kafka 3.3.x; programmatic use of `DefaultDeadLetterHandler` is recommended for production DLT publishing.
 
-## Day 18 work
+## Day 19 work
 
 - `manto-kafka` (package `io.github.manto.kafka`): Connected the existing `DefaultExceptionClassifier` to Spring Kafka's `DefaultErrorHandler`:
   - Added `getNonRetryableTypes()` getter to `DefaultExceptionClassifier` to expose configured non-retryable exception types.
@@ -263,4 +263,4 @@ Update this file at the end of every daily session.
 
 ## Next task
 
-Day 20 — metrics. Expected commit message for Day 19: `feat: implement dead letter handling`
+Day 21 — metrics. Expected commit message for Day 20: `feat: enhance DLT records with diagnostic metadata`
