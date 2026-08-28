@@ -17,19 +17,30 @@ public class MantoDeadLetterPublishingRecoverer extends DeadLetterPublishingReco
     private final DefaultDeadLetterHandler deadLetterHandler;
     private final DefaultExceptionClassifier exceptionClassifier;
     private final RetryPolicy retryPolicy;
+    private final MantoMetrics metrics;
 
     public MantoDeadLetterPublishingRecoverer(DefaultDeadLetterHandler deadLetterHandler,
                                                DefaultExceptionClassifier exceptionClassifier,
                                                RetryPolicy retryPolicy,
                                                KafkaTemplate<Object, Object> kafkaTemplate,
-                                               String topicSuffix) {
+                                               String topicSuffix,
+                                               MantoMetrics metrics) {
         super(kafkaTemplate, createDestinationResolver(topicSuffix));
         this.deadLetterHandler = deadLetterHandler;
         this.exceptionClassifier = exceptionClassifier;
         this.retryPolicy = retryPolicy;
+        this.metrics = metrics;
     }
 
     private static BiFunction<ConsumerRecord<?, ?>, Exception, org.apache.kafka.common.TopicPartition> createDestinationResolver(String topicSuffix) {
         return (record, exception) -> new org.apache.kafka.common.TopicPartition(record.topic() + topicSuffix, record.partition());
+    }
+
+    @Override
+    public void accept(ConsumerRecord<?, ?> record, Exception exception) {
+        super.accept(record, exception);
+        if (metrics != null) {
+            metrics.recordDlt(record.topic());
+        }
     }
 }

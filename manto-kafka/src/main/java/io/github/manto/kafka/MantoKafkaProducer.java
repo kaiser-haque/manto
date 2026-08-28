@@ -28,10 +28,16 @@ public class MantoKafkaProducer implements MantoProducer {
 
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final String source;
+    private final MantoMetrics metrics;
 
-    public MantoKafkaProducer(KafkaTemplate<String, Object> kafkaTemplate, String source) {
+    public MantoKafkaProducer(KafkaTemplate<String, Object> kafkaTemplate, String source, MantoMetrics metrics) {
         this.kafkaTemplate = kafkaTemplate;
         this.source = source;
+        this.metrics = metrics;
+    }
+
+    public MantoKafkaProducer(KafkaTemplate<String, Object> kafkaTemplate, String source) {
+        this(kafkaTemplate, source, null);
     }
 
     public MantoKafkaProducer(KafkaTemplate<String, Object> kafkaTemplate) {
@@ -49,10 +55,19 @@ public class MantoKafkaProducer implements MantoProducer {
         try {
             Message<T> message = buildMessage(topic, event);
             kafkaTemplate.send(message).get();
+            if (metrics != null) {
+                metrics.recordPublished(topic);
+            }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            if (metrics != null) {
+                metrics.recordPublishedFailure(topic);
+            }
             throw new MantoProducerException("Interrupted while publishing event to topic '" + topic + "'", e);
         } catch (ExecutionException e) {
+            if (metrics != null) {
+                metrics.recordPublishedFailure(topic);
+            }
             throw new MantoProducerException("Failed to publish event to topic '" + topic + "'", e.getCause());
         }
     }

@@ -2,9 +2,9 @@
 
 ## Current day
 
-Day 21 — Idempotency.
+Day 22 — Metrics.
 
-Next session: Day 22 — metrics.
+Next session: Day 23 — integration tests.
 
 ## Current version
 
@@ -28,14 +28,43 @@ Next session: Day 22 — metrics.
 - [x] DLT metadata enhancement
 - [x] Idempotency
 - [x] Exception classification
-- [ ] Metrics
+- [x] Metrics
 - [ ] Integration tests
 - [ ] Documentation
 - [ ] Maven Central release
 
 ## Current task
 
-Day 21 — Idempotency.
+Day 22 — Metrics.
+
+## Day 22 work
+
+- `manto-kafka` (package `io.github.manto.kafka`): Added Micrometer metrics infrastructure:
+  - `MantoMetrics`: Core metrics class wrapping Micrometer `MeterRegistry`, exposing methods for all required metrics:
+    - `manto.messages.published` (counter with tags: topic, operation=publish, outcome=success|failure)
+    - `manto.messages.consumed` (counter with tags: topic, operation=consume, outcome=success)
+    - `manto.messages.failed` (counter with tags: topic, operation=consume, outcome=failure)
+    - `manto.messages.retried` (counter with tags: topic, operation=retry, outcome=attempt)
+    - `manto.messages.dlt` (counter with tags: topic, operation=dlt, outcome=published)
+    - `manto.processing.duration` (timer with tags: topic, operation=process, percentile histogram enabled)
+  - All metrics use low-cardinality tags only (topic, operation, outcome) — no event IDs, offsets, exception messages, or user-controlled values.
+  - `MantoListenerInterceptor`: RecordInterceptor for consumed metrics, processing duration (via ThreadLocal Timer.Sample), and failed metrics.
+  - `MantoErrorHandler`: Extends Spring Kafka's `DefaultErrorHandler` to record failed metrics on handleRemaining and publishDeadLetter.
+  - Updated `MantoKafkaProducer` to record published (success/failure) metrics.
+  - Updated `MantoDeadLetterPublishingRecoverer` to record DLT metrics.
+- `manto-spring-boot-autoconfigure`:
+  - Added `MantoMetrics` bean auto-configured from `MeterRegistry` and `MantoProperties.observability.enabled`.
+  - Provides default `SimpleMeterRegistry` when no `MeterRegistry` bean exists (enables metrics out-of-the-box without Spring Boot Actuator).
+  - Wired metrics into producer, listener interceptor, error handler, DLT recoverer, and container factory.
+  - Metrics can be disabled via `manto.observability.enabled=false`.
+- Configuration: Metrics controlled via `manto.observability.enabled` (default `true`).
+
+- Tests:
+  - `MantoMetricsTest` (10 tests): covers all metrics (published success/failure, consumed, failed, retried, DLT, processing duration), disabled state, low-cardinality tag verification.
+  - `MantoListenerInterceptorTest` (4 tests): verifies consumed, processing duration, failed metrics, and disabled state.
+  - `MantoKafkaProducerTest`: Added 3 tests for published success/failure/interrupt metrics.
+  - All unit tests pass (`mvn test` — BUILD SUCCESS): core 19 + kafka 111 + autoconfigure 16 (including Testcontainers integration tests).
+  - Verified all existing tests still pass.
 
 ## Day 21 work
 

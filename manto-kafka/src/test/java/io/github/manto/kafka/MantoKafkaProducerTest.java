@@ -1,6 +1,8 @@
 package io.github.manto.kafka;
 
 import io.github.manto.core.MantoHeaders;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.TopicPartition;
@@ -149,6 +151,69 @@ class MantoKafkaProducerTest {
         } finally {
             Thread.interrupted();
         }
+    }
+
+    @Test
+    void recordsPublishedMetricOnSuccess() {
+        MeterRegistry registry = new SimpleMeterRegistry();
+        MantoMetrics metrics = new MantoMetrics(registry, true);
+        when(kafkaTemplate.send(any(Message.class))).thenReturn(CompletableFuture.completedFuture(sendResult()));
+
+        MantoKafkaProducer producer = new MantoKafkaProducer(kafkaTemplate, "test-source", metrics);
+        producer.publish("order-events", new OrderCreatedEvent("order-1", 42));
+
+        assertEquals(1, registry.get("manto.messages.published")
+                .tag("topic", "order-events")
+                .tag("operation", "publish")
+                .tag("outcome", "success")
+                .counter()
+                .count());
+    }
+
+    @Test
+    void recordsPublishedFailureMetricOnError() {
+        MeterRegistry registry = new SimpleMeterRegistry();
+        MantoMetrics metrics = new MantoMetrics(registry, true);
+        IllegalStateException cause = new IllegalStateException("broker unreachable");
+        when(kafkaTemplate.send(any(Message.class)))
+                .thenReturn(CompletableFuture.failedFuture(cause));
+
+        MantoKafkaProducer producer = new MantoKafkaProducer(kafkaTemplate, "test-source", metrics);
+
+        assertThrows(MantoProducerException.class,
+                () -> producer.publish("order-events", new OrderCreatedEvent("order-1", 42)));
+
+        assertEquals(1, registry.get("manto.messages.published")
+                .tag("topic", "order-events")
+                .tag("operation", "publish")
+                .tag("outcome", "failure")
+                .counter()
+                .count());
+    }
+
+    @Test
+    void recordsPublishedFailureMetricOnInterrupt() {
+        MeterRegistry registry = new SimpleMeterRegistry();
+        MantoMetrics metrics = new MantoMetrics(registry, true);
+        CompletableFuture<SendResult<String, Object>> future = new CompletableFuture<>();
+        when(kafkaTemplate.send(any(Message.class))).thenReturn(future);
+
+        MantoKafkaProducer producer = new MantoKafkaProducer(kafkaTemplate, "test-source", metrics);
+        Thread.currentThread().interrupt();
+
+        try {
+            assertThrows(MantoProducerException.class,
+                    () -> producer.publish("order-events", new OrderCreatedEvent("order-1", 42)));
+        } finally {
+            Thread.interrupted();
+        }
+
+        assertEquals(1, registry.get("manto.messages.published")
+                .tag("topic", "order-events")
+                .tag("operation", "publish")
+                .tag("outcome", "failure")
+                .counter()
+                .count());
     }
 
     private SendResult<String, Object> sendResult() {

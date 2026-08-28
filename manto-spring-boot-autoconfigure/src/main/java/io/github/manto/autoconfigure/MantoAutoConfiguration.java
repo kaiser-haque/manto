@@ -10,11 +10,16 @@ import io.github.manto.kafka.ExponentialBackoffStrategy;
 import io.github.manto.kafka.InMemoryIdempotencyStore;
 import io.github.manto.kafka.KafkaListenerEndpointFactory;
 import io.github.manto.kafka.MantoDeadLetterPublishingRecoverer;
+import io.github.manto.kafka.MantoErrorHandler;
 import io.github.manto.kafka.MantoKafkaProducer;
 import io.github.manto.kafka.MantoListenerDiscoverer;
+import io.github.manto.kafka.MantoListenerInterceptor;
 import io.github.manto.kafka.MantoListenerRegistrar;
 import io.github.manto.kafka.MantoListenerValidator;
+import io.github.manto.kafka.MantoMetrics;
 import io.github.manto.kafka.MethodKafkaListenerEndpointFactory;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
@@ -32,10 +37,11 @@ import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
 import org.springframework.kafka.listener.CommonErrorHandler;
-import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
 import org.springframework.kafka.support.serializer.JsonSerializer;
 import org.springframework.util.backoff.ExponentialBackOff;
+
+import io.micrometer.core.instrument.MeterRegistry;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -51,6 +57,7 @@ import java.util.Set;
  *   <li>{@link ConcurrentKafkaListenerContainerFactory} - consumer container factory using Spring's JSON deserializer with type headers</li>
  *   <li>Listener registration infrastructure (validator, discoverer, endpoint factory, registrar)</li>
  *   <li>Retry and DLT infrastructure abstractions (retry policy, backoff strategy, exception classifier, dead-letter handler)</li>
+ *   <li>{@link MantoMetrics} - Micrometer metrics for Kafka operations</li>
  * </ul>
  *
  * <p>Configuration is driven by {@link MantoProperties} with prefix {@code manto}.
@@ -79,8 +86,20 @@ public class MantoAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public MantoProducer mantoProducer(KafkaTemplate<String, Object> kafkaTemplate) {
-        return new MantoKafkaProducer(kafkaTemplate);
+    public MantoMetrics mantoMetrics(MeterRegistry meterRegistry, MantoProperties properties) {
+        return new MantoMetrics(meterRegistry, properties.getObservability().isEnabled());
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(MeterRegistry.class)
+    public MeterRegistry mantoMeterRegistry() {
+        return new io.micrometer.core.instrument.simple.SimpleMeterRegistry();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public MantoProducer mantoProducer(KafkaTemplate<String, Object> kafkaTemplate, MantoMetrics metrics) {
+        return new MantoKafkaProducer(kafkaTemplate, "manto", metrics);
     }
 
     @Bean
@@ -136,10 +155,10 @@ public class MantoAutoConfiguration {
         return new DefaultExceptionClassifier();
     }
 
-@Bean
+    @Bean
     @ConditionalOnMissingBean
     public DefaultDeadLetterHandler mantoDeadLetterHandler(KafkaTemplate<Object, Object> dltKafkaTemplate,
-                                                           MantoProperties properties) {
+                                                            MantoProperties properties) {
         return new DefaultDeadLetterHandler(dltKafkaTemplate, properties.getDlt().getTopicSuffix());
     }
 
@@ -151,6 +170,12 @@ public class MantoAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    public MantoListenerInterceptor mantoListenerInterceptor(MantoMetrics metrics) {
+        return new MantoListenerInterceptor(metrics);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     public ConcurrentKafkaListenerContainerFactory<String, Object> kafkaListenerContainerFactory(
             ConsumerFactory<String, Object> consumerFactory,
             RetryPolicy retryPolicy,
@@ -158,9 +183,12 @@ public class MantoAutoConfiguration {
             DefaultExceptionClassifier exceptionClassifier,
             DefaultDeadLetterHandler deadLetterHandler,
             KafkaTemplate<Object, Object> dltKafkaTemplate,
-            MantoProperties properties) {
+            MantoProperties properties,
+            MantoListenerInterceptor interceptor,
+            MantoMetrics metrics) {
         ConcurrentKafkaListenerContainerFactory<String, Object> factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory);
+        factory.setRecordInterceptor(interceptor);
 
         if (retryPolicy.isEnabled()) {
             ExponentialBackOff backOff = new ExponentialBackOff();
@@ -169,13 +197,13 @@ public class MantoAutoConfiguration {
             backOff.setMaxInterval(backoffStrategy.getMaxDelay().toMillis());
             backOff.setMaxAttempts(Math.max(0, retryPolicy.maxAttempts() - 1));
 
-            DefaultErrorHandler errorHandler;
+            CommonErrorHandler errorHandler;
             if (properties.getDlt().isEnabled()) {
                 MantoDeadLetterPublishingRecoverer recoverer =
-                        new MantoDeadLetterPublishingRecoverer(deadLetterHandler, exceptionClassifier, retryPolicy, dltKafkaTemplate, properties.getDlt().getTopicSuffix());
-                errorHandler = new DefaultErrorHandler(recoverer, backOff);
+                        new MantoDeadLetterPublishingRecoverer(deadLetterHandler, exceptionClassifier, retryPolicy, dltKafkaTemplate, properties.getDlt().getTopicSuffix(), metrics);
+                errorHandler = new MantoErrorHandler(interceptor, recoverer, backOff);
             } else {
-                errorHandler = new DefaultErrorHandler(backOff);
+                errorHandler = new MantoErrorHandler(interceptor, backOff);
             }
             configureExceptionClassifier(errorHandler, exceptionClassifier);
             factory.setCommonErrorHandler(errorHandler);
@@ -184,12 +212,14 @@ public class MantoAutoConfiguration {
         return factory;
     }
 
-    private void configureExceptionClassifier(DefaultErrorHandler errorHandler,
+    private void configureExceptionClassifier(CommonErrorHandler errorHandler,
                                               DefaultExceptionClassifier exceptionClassifier) {
         Set<Class<? extends Throwable>> nonRetryableTypes = exceptionClassifier.getNonRetryableTypes();
         for (Class<? extends Throwable> type : nonRetryableTypes) {
             if (Exception.class.isAssignableFrom(type)) {
-                errorHandler.addNotRetryableExceptions(type.asSubclass(Exception.class));
+                if (errorHandler instanceof MantoErrorHandler mantoErrorHandler) {
+                    mantoErrorHandler.addNotRetryableExceptions(type.asSubclass(Exception.class));
+                }
             }
         }
     }
@@ -211,8 +241,8 @@ public class MantoAutoConfiguration {
 
     @Bean
     public MantoListenerRegistrar mantoListenerRegistrar(ListableBeanFactory beanFactory,
-                                                         MantoListenerDiscoverer discoverer,
-                                                         KafkaListenerEndpointFactory endpointFactory) {
+                                                          MantoListenerDiscoverer discoverer,
+                                                          KafkaListenerEndpointFactory endpointFactory) {
         return new MantoListenerRegistrar(beanFactory, discoverer, endpointFactory);
     }
 }
