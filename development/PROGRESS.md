@@ -2,9 +2,9 @@
 
 ## Current day
 
-Day 22 — Metrics.
+Day 24 — Integration tests.
 
-Next session: Day 23 — integration tests.
+Next session: Day 25 — documentation.
 
 ## Current version
 
@@ -29,13 +29,57 @@ Next session: Day 23 — integration tests.
 - [x] Idempotency
 - [x] Exception classification
 - [x] Metrics
-- [ ] Integration tests
+- [x] Correlation IDs
+- [x] Integration tests
 - [ ] Documentation
 - [ ] Maven Central release
 
 ## Current task
 
-Day 22 — Metrics.
+Day 24 — Integration tests.
+
+## Day 24 work
+
+- `manto-spring-boot-autoconfigure` (test): Created `MantoEndToEndIntegrationTest` — comprehensive E2E integration test suite covering all 10 scenarios against a real Kafka broker (Testcontainers `apache/kafka:3.9.1`):
+  1. **Successful publish/consume**: basic event round-trip through `@MantoListener`
+  2. **JSON serialization**: nested/complex event objects survive JSON encode/decode
+  3. **Metadata propagation**: Manto headers (`Event-Id`, `Event-Type`, `Event-Version`, `Correlation-Id`, `Source`) present on consumed records
+  4. **Retry (failure then success)**: handler fails once, succeeds on 2nd attempt (attempts=2)
+  5. **Exponential backoff timing**: total retry time >= 200ms for 100ms+200ms expected delays
+  6. **Non-retryable failure**: `IllegalArgumentException` triggers 1 attempt only, no retries
+  7. **DLT routing**: exhausted retries route record to `topic.DLT`
+  8. **DLT metadata**: DLT record carries all expected headers (`Original-Topic`, `Exception-Class`, `Exception-Message`, `Retry-Count`, `Failure-Timestamp`, `Trace-Id`, `Event-Id`, `Correlation-Id`)
+  9. **Idempotency**: duplicate event with same key is detected and skipped (processed once)
+  10. **Correlation ID**: explicit correlation ID propagates through headers to handler context
+
+- `manto-kafka` (production): Fixed `MantoDeadLetterPublishingRecoverer` DLT headers:
+  - Overrode `createProducerRecord` to add Manto DLT headers (`DLT_ORIGINAL_TOPIC`, `DLT_ORIGINAL_PARTITION`, `DLT_ORIGINAL_OFFSET`, `DLT_ORIGINAL_TIMESTAMP`, `DLT_EXCEPTION_CLASS`, `DLT_EXCEPTION_MESSAGE`) alongside event metadata headers.
+  - Added ThreadLocal `CURRENT_EXCEPTION` to pass the exception from the 3-arg `accept` (ConsumerAwareRecordRecoverer) to `createProducerRecord` which doesn't receive the exception.
+  - Overrode 3-arg `accept(ConsumerRecord, Consumer, Exception)` to store exception in ThreadLocal before `super.accept()` and clear it in `finally`.
+  - Added `DLT_RETRY_COUNT`, `DLT_FAILURE_TIMESTAMP`, `DLT_TRACE_ID` headers in `addMantoHeaders`.
+
+- Tests:
+  - `MantoEndToEndIntegrationTest` (9 tests): all 10 scenarios covered in a single test class (scenarios 7 & 8 combined in `dltRoutingAndMetadata`).
+  - All **183 tests pass** across all modules (core 19 + kafka 129 + autoconfigure 25 + starter 0 + test 0).
+  - Build command: `mvn test -pl manto-spring-boot-autoconfigure -am -Dtest=MantoEndToEndIntegrationTest -Dsurefire.failIfNoSpecifiedTests=false`.
+
+## Day 23 work
+
+- `manto-kafka` (package `io.github.manto.kafka`): Implemented correlation ID propagation for logging context:
+  - `CorrelationIdContext`: New ThreadLocal-based utility class for accessing the current correlation ID during message processing. Provides `get()`, `set(correlationId)`, and `clear()` methods. Thread-isolated: each consumer thread maintains its own correlation ID.
+  - `MantoListenerInterceptor`: Updated to extract the correlation ID from the incoming record's `Manto-Correlation-Id` header (falling back to `Manto-Event-Id`) and set it in `CorrelationIdContext` on intercept. Clears the context on both `recordProcessingDuration` and `recordFailed` to prevent ThreadLocal leaks.
+  - `MantoKafkaProducer`: Added `publish(String topic, T event, String correlationId)` overload that accepts an explicit correlation ID. When `correlationId` is null, generates a new UUID (default behavior). Enables propagating a correlation ID from an upstream service or processing context through Kafka headers.
+- Integration tests: Added `CorrelationIdPropagationIntegrationTest` (Testcontainers) with 3 end-to-end scenarios:
+  - `propagatesExplicitCorrelationIdFromProducerToConsumer`: verifies explicit correlation ID flows through Kafka headers
+  - `generatesCorrelationIdEqualToEventIdWhenNotExplicit`: verifies default correlation ID equals event ID
+  - `interceptorSetsCorrelationIdInContext`: verifies the interceptor populates `CorrelationIdContext` and clears it after processing
+
+- Tests:
+  - `CorrelationIdContextTest` (6 tests): covers get/set/clear, ThreadLocal isolation, concurrent access, and clear-on-one-thread-not-affecting-another.
+  - `MantoListenerInterceptorTest` (9 tests): added 5 tests for correlation ID context propagation — sets on intercept, clears on processing duration, clears on failed, falls back to event ID, sets null when no headers present.
+  - `MantoKafkaProducerTest` (15 tests): added 4 tests for explicit correlation ID — uses explicit ID, generates when null, rejects null topic, rejects null event.
+  - `CorrelationIdPropagationIntegrationTest` (3 tests): end-to-end correlation ID propagation with real Kafka broker.
+  - All 145 tests pass (`mvn -pl manto-spring-boot-autoconfigure -am test` — BUILD SUCCESS): core 19 + kafka 110 + autoconfigure 16.
 
 ## Day 22 work
 
@@ -290,16 +334,15 @@ Update this file at the end of every daily session.
 
 ## Tests run
 
-- `mvn -pl manto-kafka -am test` — BUILD SUCCESS, 94 unit tests (19 core + 75 kafka unit).
-- `mvn -pl manto-spring-boot-autoconfigure -am test` — BUILD SUCCESS, 16 unit tests (11 properties + listener registration context + 4 integration).
-- `mvn clean verify` — BUILD SUCCESS for unit tests across all 6 reactor modules (core 19 + kafka 94 + autoconfigure 16). Integration tests with Testcontainers require Docker.
+- `mvn -pl manto-kafka -am test` — BUILD SUCCESS, 148 unit tests (19 core + 129 kafka).
+- `mvn -pl manto-spring-boot-autoconfigure -am test` — BUILD SUCCESS, 183 tests (19 core + 129 kafka + 25 autoconfigure, including 9 E2E integration tests).
+- `mvn test` — BUILD SUCCESS, 183 tests (all modules).
 
 ## Known issues
 
 - The Kafka container image pull dominates the integration test runtime on first run (~1 minute; ~65 s total for the test). No functional issues.
 - SLF4J NOP warnings appear during tests; no logger binding is configured (non-blocking).
-- Docker not available in current environment; Testcontainers integration tests cannot run.
 
 ## Next task
 
-Day 22 — metrics. Expected commit message for Day 21: `feat: add idempotency support`
+Day 25 — documentation. Expected commit message for Day 24: `feat: comprehensive end-to-end integration tests`
