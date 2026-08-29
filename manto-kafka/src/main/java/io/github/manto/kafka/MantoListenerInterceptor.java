@@ -1,11 +1,16 @@
 package io.github.manto.kafka;
 
+import io.github.manto.core.MantoHeaders;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.springframework.kafka.listener.RecordInterceptor;
 
 /**
- * Interceptor for recording consumer metrics.
+ * Interceptor for recording consumer metrics and propagating correlation IDs.
+ *
+ * <p>Sets the correlation ID from the incoming record's {@code Manto-Correlation-Id}
+ * header into the {@link CorrelationIdContext} so application code can access it
+ * during processing. Clears the context after processing completes.</p>
  */
 public class MantoListenerInterceptor implements RecordInterceptor<String, Object> {
 
@@ -22,6 +27,8 @@ public class MantoListenerInterceptor implements RecordInterceptor<String, Objec
 
     @Override
     public ConsumerRecord<String, Object> intercept(ConsumerRecord<String, Object> record, Consumer<String, Object> consumer) {
+        String correlationId = extractCorrelationId(record);
+        CorrelationIdContext.set(correlationId);
         if (metrics != null) {
             metrics.recordConsumed(record.topic());
             processingTimer.set(metrics.startProcessingTimer());
@@ -35,12 +42,23 @@ public class MantoListenerInterceptor implements RecordInterceptor<String, Objec
             metrics.recordProcessingDuration(sample, topic);
             processingTimer.remove();
         }
+        CorrelationIdContext.clear();
     }
 
     public void recordFailed(String topic) {
         processingTimer.remove();
+        CorrelationIdContext.clear();
         if (metrics != null) {
             metrics.recordFailed(topic);
         }
+    }
+
+    private String extractCorrelationId(ConsumerRecord<?, ?> record) {
+        org.apache.kafka.common.header.Header header = record.headers().lastHeader(MantoHeaders.CORRELATION_ID);
+        if (header != null) {
+            return new String(header.value());
+        }
+        org.apache.kafka.common.header.Header eventIdHeader = record.headers().lastHeader(MantoHeaders.EVENT_ID);
+        return eventIdHeader != null ? new String(eventIdHeader.value()) : null;
     }
 }

@@ -216,6 +216,57 @@ class MantoKafkaProducerTest {
                 .count());
     }
 
+    @Test
+    void usesExplicitCorrelationIdWhenProvided() {
+        OrderCreatedEvent event = new OrderCreatedEvent("order-1", 42);
+        when(kafkaTemplate.send(any(Message.class))).thenReturn(CompletableFuture.completedFuture(sendResult()));
+
+        MantoKafkaProducer producer = new MantoKafkaProducer(kafkaTemplate, "test-source");
+        producer.publish("order-events", event, "upstream-corr-123");
+
+        ArgumentCaptor<Message<?>> messageCaptor = ArgumentCaptor.forClass(Message.class);
+        verify(kafkaTemplate).send(messageCaptor.capture());
+        Message<?> message = messageCaptor.getValue();
+
+        String eventId = (String) message.getHeaders().get(MantoHeaders.EVENT_ID);
+        assertEquals("upstream-corr-123", message.getHeaders().get(MantoHeaders.CORRELATION_ID));
+        assertNotEquals(eventId, message.getHeaders().get(MantoHeaders.CORRELATION_ID));
+    }
+
+    @Test
+    void generatesCorrelationIdWhenNullProvided() {
+        OrderCreatedEvent event = new OrderCreatedEvent("order-1", 42);
+        when(kafkaTemplate.send(any(Message.class))).thenReturn(CompletableFuture.completedFuture(sendResult()));
+
+        MantoKafkaProducer producer = new MantoKafkaProducer(kafkaTemplate, "test-source");
+        producer.publish("order-events", event, null);
+
+        ArgumentCaptor<Message<?>> messageCaptor = ArgumentCaptor.forClass(Message.class);
+        verify(kafkaTemplate).send(messageCaptor.capture());
+        Message<?> message = messageCaptor.getValue();
+
+        String eventId = (String) message.getHeaders().get(MantoHeaders.EVENT_ID);
+        assertEquals(eventId, message.getHeaders().get(MantoHeaders.CORRELATION_ID));
+    }
+
+    @Test
+    void rejectsNullTopicWithExplicitCorrelationId() {
+        MantoKafkaProducer producer = new MantoKafkaProducer(kafkaTemplate);
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> producer.publish(null, new OrderCreatedEvent("order-1", 42), "corr-123"));
+        assertEquals("topic must not be null or blank", e.getMessage());
+    }
+
+    @Test
+    void rejectsNullEventWithExplicitCorrelationId() {
+        MantoKafkaProducer producer = new MantoKafkaProducer(kafkaTemplate);
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> producer.publish("order-events", null, "corr-123"));
+        assertEquals("event must not be null", e.getMessage());
+    }
+
     private SendResult<String, Object> sendResult() {
         Headers headers = new RecordHeaders();
         ProducerRecord<String, Object> record = new ProducerRecord<>("order-events", null, "order-1", new OrderCreatedEvent("order-1", 42), headers);

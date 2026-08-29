@@ -46,6 +46,22 @@ public class MantoKafkaProducer implements MantoProducer {
 
     @Override
     public <T> void publish(String topic, T event) {
+        publish(topic, event, null);
+    }
+
+    /**
+     * Publishes an event with an explicit correlation ID.
+     *
+     * <p>If {@code correlationId} is {@code null}, a new UUID is generated and used
+     * as the correlation ID (matching the event ID). This enables propagating a
+     * correlation ID from an upstream service or processing context.</p>
+     *
+     * @param topic the target topic, must not be null or blank
+     * @param event the event payload, must not be null
+     * @param correlationId the correlation ID to propagate, or {@code null} to generate a new one
+     * @param <T> the event type
+     */
+    public <T> void publish(String topic, T event, String correlationId) {
         if (topic == null || topic.isBlank()) {
             throw new IllegalArgumentException("topic must not be null or blank");
         }
@@ -53,7 +69,7 @@ public class MantoKafkaProducer implements MantoProducer {
             throw new IllegalArgumentException("event must not be null");
         }
         try {
-            Message<T> message = buildMessage(topic, event);
+            Message<T> message = buildMessage(topic, event, correlationId);
             kafkaTemplate.send(message).get();
             if (metrics != null) {
                 metrics.recordPublished(topic);
@@ -72,18 +88,18 @@ public class MantoKafkaProducer implements MantoProducer {
         }
     }
 
-    private <T> Message<T> buildMessage(String topic, T event) {
+    private <T> Message<T> buildMessage(String topic, T event, String correlationId) {
         String eventId = UUID.randomUUID().toString();
         String eventType = event.getClass().getSimpleName();
         String eventVersion = "1.0";
-        String correlationId = eventId;
+        String resolvedCorrelationId = correlationId != null ? correlationId : eventId;
 
         return MessageBuilder.withPayload(event)
                 .setHeader(KafkaHeaders.TOPIC, topic)
                 .setHeader(MantoHeaders.EVENT_ID, eventId)
                 .setHeader(MantoHeaders.EVENT_TYPE, eventType)
                 .setHeader(MantoHeaders.EVENT_VERSION, eventVersion)
-                .setHeader(MantoHeaders.CORRELATION_ID, correlationId)
+                .setHeader(MantoHeaders.CORRELATION_ID, resolvedCorrelationId)
                 .setHeader(MantoHeaders.SOURCE, source)
                 .build();
     }
