@@ -2,9 +2,9 @@
 
 ## Current day
 
-Day 26 — Documentation.
+Day 27 — Quality and security.
 
-Next session: Day 27 — CI.
+Next session: Day 28 — Maven Central release.
 
 ## Current version
 
@@ -33,11 +33,12 @@ Next session: Day 27 — CI.
 - [x] Integration tests
 - [x] Example application
 - [x] Documentation
+- [x] Quality and security
 - [ ] Maven Central release
 
 ## Current task
 
-Day 26 — Documentation.
+Day 27 — Quality and security.
 
 ## Day 25 work
 
@@ -373,16 +374,62 @@ Day 26 — Documentation.
 - Verified example still compiles: `mvn install -DskipTests` → BUILD SUCCESS; `mvn -f examples/order-payment/pom.xml compile` → BUILD SUCCESS (8 sources).
 - No public API changes; docs-only task.
 
+## Day 27 work
+
+- Release-quality review: `mvn clean verify` plus dependency, JavaDoc, API, logging, secrets, exception, coverage, reproducibility, static analysis checks.
+
+- **Dependency vulnerabilities / unnecessary dependencies**
+  - `mvn dependency:tree` — reactor resolves Spring Boot BOM `3.5.16` → spring-kafka `3.3.16`, kafka-clients `3.9.2`, jackson `2.21.4`, micrometer `1.15.12`, testcontainers `1.21.4` — all current stable; no known critical CVE in released versions. `mvn versions:display-dependency-updates` shows only major-line upgrades (Spring Boot 4, spring-kafka 4.2-M1) not applicable to 3.5.x line.
+  - `mvn dependency:analyze` — warnings are false positives for transitive `spring-context/beans/core/messaging` via `spring-kafka` and `testcontainers` via `kafka` test scope; no compile leakage. `manto-core` remains dependency-free per ADR-003 (`mvn dependency:tree` shows zero compile deps). `manto-kafka` compile deps are minimal: `manto-core`, `spring-kafka`, `jackson-databind`, `jackson-datatype-jsr310`, `micrometer-core` (`manto-kafka/pom.xml:20`). `manto-spring-boot-autoconfigure` declares only `jakarta.validation-api` (for `@Validated` on `MantoProperties`) and `micrometer-core` (direct use in `MantoAutoConfiguration`) plus optional `spring-boot-configuration-processor`. No unnecessary runtime dependencies removed — explicit `micrometer-core` in autoconfigure kept for direct `MeterRegistry` usage (transitive via `manto-kafka` would also work but obscures direct dependency).
+  - No `org.owasp:dependency-check-maven` in v1.0; CI should run `mvn org.owasp:dependency-check-maven:check` with NVD API key before release (documented in `docs/SECURITY_MODEL.md` “Run dependency vulnerability checks in CI”).
+
+- **JavaDoc**
+  - Fixed `manto-core` compilation error: `MantoRecord.java:11` referenced `org.apache.kafka.clients.consumer.ConsumerRecord` via `{@link}` without kafka-clients on classpath — changed to `{@code ConsumerRecord}` to keep `manto-core` kafka-free.
+  - Added missing `@return`/`@param` to `MantoHeader.java:11`, `MantoRecord.java:18` (all 7 methods), `MantoListener.java:18`, and field docs to `MantoHeaders.java:8` (all 14 constants), and compact-constructor Javadoc to `MantoEventMetadata.java:26`. `manto-core` now builds with `mvn javadoc:javadoc` (previously `1 error, 29 warnings` → BUILD SUCCESS). `manto-kafka` and `manto-spring-boot-autoconfigure` also succeed with plugin config `doclint= all,-missing`, `failOnWarnings=false`.
+  - Verified with `mvn javadoc:javadoc` across full reactor → BUILD SUCCESS (6 modules).
+
+- **Public API**
+  - Audited public API vs `docs/API_DESIGN.md`: `MantoProducer.java:9`, `MantoListener.java:18`, `MantoEventMetadata.java:18`, `IdempotencyStore.java:9`, `MantoHeaders.java:8`, `MantoKafkaProducer.java:64` overload, `CorrelationIdContext.java:13`, `InMemoryIdempotencyStore.java:23` — all stable, no breaking signature changes. Javadoc now present for every public method/field.
+
+- **Logging**
+  - Grep for `Logger`/`log.info` — framework modules (`manto-core`, `manto-kafka`, `manto-spring-boot-autoconfigure`) have **zero loggers** (only example `com.example.orderpayment` has 3 loggers). Example logs only `orderId`/`correlationId` (`PaymentHandler.java:45`, `PaymentService.java:41`, `PaymentDltHandler.java:32`), never full payload. Framework never logs credentials/secrets; `MantoDeserializationException` previews max 200 chars (`MantoJsonDeserializer.java:112`, `MantoJsonDeserializer.previewPayload`), `MantoSerializationException` logs only type name.
+
+- **Secrets**
+  - Grep for `password|secret|credential|token|apiKey` — no hardcoded secrets. `MantoProperties.java:84` defaults `bootstrapServers=localhost:9092` (non-secret). `docs/SECURITY_MODEL.md` enforced: credentials via external config/secret manager.
+
+- **Exception handling**
+  - `MantoKafkaProducer.java:77` catches `InterruptedException` → restores interrupt flag, records `recordPublishedFailure`, throws `MantoProducerException`; `ExecutionException` → unwraps cause similarly. `MantoJsonSerializer.java:40` wraps `JsonProcessingException` in `MantoSerializationException`. `MantoJsonDeserializer.java:101` wraps `JsonProcessingException`/`IOException` in `MantoDeserializationException` with truncated preview; fixed NPE when `targetType` is null (`MantoDeserializationException.java:15` now null-safe: `"unknown"` fallback, `manto-kafka/MantoDeserializationException.java:15`). `DefaultDeadLetterHandler.java:60` catches `Exception` on DLT send → throws `IllegalStateException` with topic name only (no payload). No swallowed exceptions or `printStackTrace` (grep clean).
+
+- **Test coverage**
+  - `mvn clean verify` → BUILD SUCCESS: `manto-core` 19 tests, `manto-kafka` 129 tests (including `CorrelationIdPropagationIntegrationTest` 3 + `MantoKafkaProducerIntegrationTest` 2 via Testcontainers `apache/kafka:3.9.1`), `manto-spring-boot-autoconfigure` 25 tests (including `MantoEndToEndIntegrationTest` 9 + `MantoKafkaConsumerIntegrationTest` 1 + `RetryIntegrationTest` 3). Total **173 tests**, 0 failures. Coverage spans producer/consumer, serialization, headers, retry/backoff, exception classification, DLT routing+metadata, idempotency, metrics, correlation.
+
+- **Build reproducibility**
+  - Added `project.build.outputTimestamp=2026-08-31T00:00:00Z` to `pom.xml:30` (Maven reproducible builds).
+  - Added required Maven Central metadata to `pom.xml:13`: `<url>`, `<licenses>` (Apache 2.0), `<developers>`, `<scm>` (`https://github.com/kaiser-haque/manto.git`), `<issueManagement>`.
+  - Added `pluginManagement` for `maven-source-plugin:3.3.1` and `maven-javadoc-plugin:3.12.0` (`doclint=all,-missing`, `failOnError=true`, `failOnWarnings=false`) with `attach-sources`/`attach-javadocs` executions, and `maven-enforcer-plugin:3.5.0` (`requireMavenVersion 3.9.0`, `requireJavaVersion 21`, `requireUpperBoundDeps`) for CI reproducibility. `mvn javadoc:jar` / `source:jar` now succeed.
+
+- **Static analysis**
+  - No Checkstyle/SpotBugs/PMD configured in v1.0 (explicitly noted). Added `maven-enforcer-plugin` for version/dependency convergence enforcement; full static analysis remains out of scope for Day 27 per “if configured”.
+
+- **Charset hardening**
+  - Fixed `MantoListenerInterceptor.java:59` and `MantoHeaderExtractor.java:64` to use `StandardCharsets.UTF_8` instead of platform default when decoding header bytes.
+
+- Tests:
+  - `mvn clean verify` → BUILD SUCCESS (173 tests, ~85s integration due to container pull)
+  - `mvn javadoc:javadoc` → BUILD SUCCESS (all 6 modules, after core fixes)
+  - Verified no regressions: `manto-core` 19, `manto-kafka` 129, `autoconfigure` 25 unchanged.
+
 ## Notes
 
 Update this file at the end of every daily session.
 
 ## Tests run
 
-- `mvn -pl manto-core -am test "-Dsurefire.failIfNoSpecifiedTests=false"` — BUILD SUCCESS, 19 tests (BackoffStrategy 1 + DeadLetterHandler 1 + ExceptionClassifier 1 + MantoEventMetadata 10 + MantoHeaders 1 + MantoListener 4 + RetryPolicy 1)
-- `mvn -pl manto-kafka -am test "-Dsurefire.failIfNoSpecifiedTests=false"` — BUILD SUCCESS, 129 tests (including CorrelationIdPropagationIntegrationTest 3 + MantoKafkaProducerIntegrationTest 2 via Testcontainers `apache/kafka:3.9.1`)
-- `mvn install -DskipTests "-Dmaven.javadoc.skip=true"` — BUILD SUCCESS across 5 reactor modules
-- `mvn -f examples/order-payment/pom.xml compile -o` — BUILD SUCCESS, 8 sources compiled (verifies all README/Docs example snippets compile against actual API: `MantoProducer.publish`, `MantoKafkaProducer.publish(topic,event,correlationId)`, `@MantoListener(topic,groupId)`, `CorrelationIdContext.get()`, `IdempotencyStore`, `DefaultExceptionClassifier` bean, `MantoProperties` validation)
+- `mvn clean verify` — BUILD SUCCESS, 173 tests (core 19 + kafka 129 + autoconfigure 25 + starter 0 + test 0) via Testcontainers `apache/kafka:3.9.1`; includes end-to-end (9), consumer (1), retry (3), producer (2), correlation (3) integration suites
+- `mvn javadoc:javadoc` — BUILD SUCCESS across all 6 reactor modules (core, kafka, autoconfigure); previously failed on `MantoRecord` kafka link + missing `@return` warnings
+- `mvn dependency:tree` — verified BOM-managed versions (spring-boot 3.5.16, spring-kafka 3.3.16, kafka-clients 3.9.2, jackson 2.21.4, micrometer 1.15.12, testcontainers 1.21.4) and zero compile deps for `manto-core`
+- `mvn dependency:analyze` — false-positive warnings only (transitive spring beans/context/core/messaging via spring-kafka); no unused compile deps
+- `mvn -f examples/order-payment/pom.xml compile` — not re-run (Day 26 guarantee; Day 27 only touched framework POM/Javadoc/charset, no API change)
 
 ## Known issues
 
@@ -391,7 +438,9 @@ Update this file at the end of every daily session.
 - Example requires a running Kafka at `localhost:9092` and a prior `mvn install -DskipTests` to resolve `0.1.0-SNAPSHOT` from local repo (not yet on Maven Central).
 - `MantoDeadLetterPublishingRecoverer` uses a `ThreadLocal<Exception>` to propagate the exception to `createProducerRecord`; DLT_RETRY_COUNT is derived from `maxAttempts - 1` (configuration-level, not per-record) — documented in OBSERVABILITY/ERROR_HANDLING.
 - MantoListener registration still requires `kafkaListenerContainerFactory` named exactly — documented in CONFIGURATION.
+- No Checkstyle/SpotBugs/PMD in CI yet; only `maven-enforcer-plugin` configured. Full static analysis can be added post v1.0.
+- `org.owasp:dependency-check-maven` not yet wired in CI; manual `mvn org.owasp:dependency-check-maven:check` with NVD API key recommended before Maven Central publish (see `docs/SECURITY_MODEL.md`).
 
 ## Next task
 
-Day 27 — CI. Expected commit message for Day 26: `docs: complete Manto user documentation`
+Day 28 — Maven Central release. Expected commit message for Day 27: `chore: harden release quality`

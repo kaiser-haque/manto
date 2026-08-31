@@ -61,6 +61,6 @@ public final class MantoHeaderExtractor {
 
     private static String getHeader(ConsumerRecord<?, ?> record, String headerName, String defaultValue) {
         org.apache.kafka.common.header.Header header = record.headers().lastHeader(headerName);
-        return header != null ? new String(header.value()) : defaultValue;
+        return header != null ? new String(header.value(), java.nio.charset.StandardCharsets.UTF_8) : defaultValue;
     }
 }

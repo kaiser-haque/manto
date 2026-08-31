@@ -17,9 +17,17 @@ import java.lang.annotation.Target;
 @Target(ElementType.METHOD)
 public @interface MantoListener {
 
-    /** The topic this handler consumes events from. */
+    /**
+     * The topic this handler consumes events from.
+     *
+     * @return the topic name, never blank
+     */
     String topic();
 
-    /** The consumer group id for this handler. */
+    /**
+     * The consumer group id for this handler.
+     *
+     * @return the consumer group id, never blank
+     */
     String groupId();
 }

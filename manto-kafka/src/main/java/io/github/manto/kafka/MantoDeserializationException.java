@@ -13,7 +13,7 @@ public class MantoDeserializationException extends RuntimeException {
     private final String payloadPreview;
 
     public MantoDeserializationException(Class<?> targetType, String payloadPreview, Throwable cause) {
-        super("Failed to deserialize payload to type " + targetType.getName(), cause);
+        super("Failed to deserialize payload to type " + (targetType != null ? targetType.getName() : "unknown"), cause);
         this.targetType = targetType;
         this.payloadPreview = payloadPreview;
     }

@@ -23,6 +23,11 @@ public record MantoEventMetadata(
         String source,
         Instant timestamp) {
 
+    /**
+     * Compact constructor validating all fields.
+     *
+     * @throws IllegalArgumentException if any string field is null or blank, or timestamp is null
+     */
     public MantoEventMetadata {
         requireNotBlank(eventId, "eventId");
         requireNotBlank(eventType, "eventType");

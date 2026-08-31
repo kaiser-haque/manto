@@ -56,9 +56,9 @@ public class MantoListenerInterceptor implements RecordInterceptor<String, Objec
     private String extractCorrelationId(ConsumerRecord<?, ?> record) {
         org.apache.kafka.common.header.Header header = record.headers().lastHeader(MantoHeaders.CORRELATION_ID);
         if (header != null) {
-            return new String(header.value());
+            return new String(header.value(), java.nio.charset.StandardCharsets.UTF_8);
         }
         org.apache.kafka.common.header.Header eventIdHeader = record.headers().lastHeader(MantoHeaders.EVENT_ID);
-        return eventIdHeader != null ? new String(eventIdHeader.value()) : null;
+        return eventIdHeader != null ? new String(eventIdHeader.value(), java.nio.charset.StandardCharsets.UTF_8) : null;
     }
 }
