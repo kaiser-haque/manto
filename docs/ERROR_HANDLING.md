@@ -169,11 +169,11 @@ Every DLT record carries (`MantoHeaders.java:16`, `MantoDeadLetterPublishingReco
 | `Manto-DLT-Original-Timestamp` | `record.timestamp()` | `1717060000000` |
 | `Manto-DLT-Exception-Class` | `exception.getClass().getName()` (or `"null"`) | `java.lang.RuntimeException` |
 | `Manto-DLT-Exception-Message` | `exception.getMessage()` (or `"null"`) | `Transient payment gateway timeout...` |
-| `Manto-DLT-Retry-Count` | `retryPolicy.maxAttempts() - 1` | `2` (for `maxAttempts=3`) |
+| `Manto-DLT-Retry-Count` | `retryPolicy.maxAttempts() - 1` (config-derived, not per-record) | `2` (for `maxAttempts=3`) — same value even if the record failed on first attempt (see `MantoDeadLetterPublishingRecoverer.java:92`) |
 | `Manto-DLT-Failure-Timestamp` | `Instant.now().toString()` at DLT publish time | `2026-05-06T12:34:56.789Z` |
 | `Manto-DLT-Trace-Id` | `UUID.randomUUID().toString()` | `...` |
 
-Note: `DLT_RETRY_COUNT` reflects the configured max retries, not the per-record attempt count at publication.
+> **Gotcha:** `Manto-DLT-Retry-Count` is **not** the number of times this specific record was retried. It is the configured max retry budget (`manto.retry.max-attempts - 1`). A non-retryable `IllegalArgumentException` that goes straight to DLT still carries `2` when `max-attempts=3`.
 
 ### Observing the DLT
 

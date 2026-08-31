@@ -30,15 +30,17 @@ Java/Spring Boot teams using Apache Kafka who want standardized application-leve
 
 ## Core user experience
 
-Dependency:
+Dependency (snapshot while v1.0 is in development; replace `0.1.0-SNAPSHOT` with the Maven Central release version `1.0.0` once published — see `docs/MAVEN_CENTRAL.md`):
 
 ```xml
 <dependency>
-  <groupId>io.github.<namespace></groupId>
+  <groupId>io.github.manto</groupId>
   <artifactId>manto-spring-boot-starter</artifactId>
-  <version>1.0.0</version>
+  <version>0.1.0-SNAPSHOT</version>
 </dependency>
 ```
+
+Until the Maven Central publication, build from source once: `mvn install -DskipTests` at the repository root.
 
 Consumer:
 

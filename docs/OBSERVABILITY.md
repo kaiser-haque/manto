@@ -65,9 +65,8 @@ public MeterRegistry mantoMeterRegistry() {
 }
 ```
 
-- With Spring Boot Actuator on the classpath, your `PrometheusMeterRegistry` (or any other) is reused — metrics are exported automatically.
-- Without Actuator, the fallback `SimpleMeterRegistry` keeps Manto metrics in-memory and queryable via `MeterRegistry` bean injection.
-- To export elsewhere, declare your own `MeterRegistry` bean — the fallback is not created.
+- With Spring Boot Actuator on the classpath, your `PrometheusMeterRegistry` (or any other) is reused — metrics are exported automatically (add `micrometer-registry-prometheus` and expose `management.endpoints.web.exposure.include=prometheus`).
+- Without Actuator, the fallback `SimpleMeterRegistry` keeps Manto metrics **in-memory and queryable via `MeterRegistry` bean injection only — it is not HTTP-scrapeable**. Inject `MeterRegistry` in tests or a custom endpoint to read them; declare your own `MeterRegistry` bean to export elsewhere — the fallback is then not created.
 
 ### Querying Metrics
 

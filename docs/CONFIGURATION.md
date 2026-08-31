@@ -42,8 +42,8 @@ manto:
 | `manto.retry.backoff.max-delay` | `Duration` | `30000ms` | `@NotNull`, `>0` | Cap for exponential delay. |
 | `manto.dlt.enabled` | `boolean` | `false` | — | Whether exhausted/non-retryable failures are published to a dead-letter topic. When `true`, the container factory uses `MantoDeadLetterPublishingRecoverer` as the recoverer for the `MantoErrorHandler`. |
 | `manto.dlt.topic-suffix` | `String` | `.DLT` | `null` → `.DLT` | Suffix appended to the original topic name for the DLT. Destination is `record.topic() + topicSuffix`, partition is preserved (`MantoDeadLetterPublishingRecoverer.java:45`). |
-| `manto.idempotency.enabled` | `boolean` | `true` | — | Gating flag for idempotency guard logic in application code. The `IdempotencyStore` bean is still available when `false`; the flag has no framework-side filtering — the handler decides. |
-| `manto.observability.enabled` | `boolean` | `true` | — | Gating flag for `MantoMetrics`. When `false`, `MantoMetrics` methods are no-ops (`MantoMetrics.java:37`). A `SimpleMeterRegistry` is auto-configured when no `MeterRegistry` bean exists (`MantoAutoConfiguration.java:93`). |
+| `manto.idempotency.enabled` | `boolean` | `true` | — | Gating flag for **your** handler's idempotency guard. Manto does not auto-skip duplicates — the handler must check `IdempotencyStore.isProcessed`/`markProcessed` (see `README.md#idempotency` and `examples/order-payment/src/main/java/com/example/orderpayment/payment/PaymentHandler.java:51`). The `IdempotencyStore` bean is still created when `false` (`MantoAutoConfiguration.java:166`); setting `false` just signals that you will stop consulting it. |
+| `manto.observability.enabled` | `boolean` | `true` | — | Gating flag for `MantoMetrics`. When `false`, `MantoMetrics` methods are no-ops (`MantoMetrics.java:37`). A `SimpleMeterRegistry` is auto-configured when no `MeterRegistry` bean exists (`MantoAutoConfiguration.java:93`) — **in-memory only, not scrapeable** (see `docs/OBSERVABILITY.md`). Add `spring-boot-starter-actuator` + `micrometer-registry-prometheus` to export. |
 
 There are no additional namespaces like `manto.producer.*` or `manto.consumer.*`. Only the `manto.*` tree above is bound.
 
@@ -67,14 +67,17 @@ All factory and infrastructure beans are declared with `@ConditionalOnMissingBea
 - `MantoMetrics` (needs a `MeterRegistry`; `SimpleMeterRegistry` is provided as fallback), `MantoListenerInterceptor`
 - `MantoProducer` (constructed as `new MantoKafkaProducer(template, "manto", metrics)`)
 
-Provide your own bean of the same type to replace any of them. Example — custom exception classifier:
+Provide your own bean of the same type to replace any of them. Example — custom exception classifier (**must be type `DefaultExceptionClassifier`**, not just `ExceptionClassifier` — `MantoAutoConfiguration.java:153` wires `DefaultExceptionClassifier` specifically):
 
 ```java
 @Bean
 public DefaultExceptionClassifier mantoExceptionClassifier() {
     return new DefaultExceptionClassifier(Set.of(IllegalArgumentException.class));
 }
+// Use Set.of() to make every exception retryable.
 ```
+
+A bean of type `ExceptionClassifier` alone will not rewire the container factory (see `docs/ERROR_HANDLING.md#customizing-classification`).
 
 ## Validation
 

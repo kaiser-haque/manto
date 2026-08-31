@@ -38,7 +38,13 @@ Start Kafka (KRaft, no ZooKeeper):
 
 ```bash
 docker run -d --name kafka -p 9092:9092 apache/kafka:3.9.1
+# If the container exits immediately, check logs: docker logs kafka
+# Alternative with compose (handles listeners and healthcheck):
+#   docker compose -f docker-compose.yml up -d
+#   docker compose -f docker-compose.yml logs -f
 ```
+
+A `docker-compose.yml` is included in this directory for hosts where the bare `docker run` form does not start. On first pull the Kafka image download dominates start-up (~1 min).
 
 ## Run
 
@@ -89,7 +95,7 @@ kafka-console-consumer --bootstrap-server localhost:9092 --topic order-events.DL
 ```
 
 Headers on `payment-events` include the propagated `Manto-Correlation-Id` from the original order.
-Headers on `order-events.DLT` include `Manto-DLT-Original-Topic`, `Manto-DLT-Exception-Class`, `Manto-DLT-Retry-Count` (value `2` for `max-attempts=3`), `Manto-DLT-Failure-Timestamp`, `Manto-DLT-Trace-Id`, plus the copied `Manto-Event-Id` / `Manto-Correlation-Id`.
+Headers on `order-events.DLT` include `Manto-DLT-Original-Topic`, `Manto-DLT-Exception-Class`, `Manto-DLT-Retry-Count` (**config-derived `maxAttempts - 1`, so `2` for `max-attempts=3` even on a non-retryable first-attempt failure** — `MantoDeadLetterPublishingRecoverer.java:92`), `Manto-DLT-Failure-Timestamp`, `Manto-DLT-Trace-Id`, plus the copied `Manto-Event-Id` / `Manto-Correlation-Id`.
 
 ## Configuration
 
@@ -134,6 +140,8 @@ manto:
 ## Notes
 
 - **No business complexity** — events are `orderId + amount`; payment is log + publish; no DB, no over-engineering.
-- **In-memory idempotency** is single-instance only. For multi-instance production, provide your own `IdempotencyStore` bean (e.g. Redis) — Manto auto-configures via `@ConditionalOnMissingBean` (`MantoAutoConfiguration.java:166`). See `README.md#idempotency` and `docs/ERROR_HANDLING.md`.
-- **Retry / DLT wiring** is via `MantoAutoConfiguration.kafkaListenerContainerFactory` (`MantoAutoConfiguration.java:179`): retry uses `ExponentialBackOff` built from `manto.retry.*`; classification uses `DefaultExceptionClassifier` (`manto-kafka/DefaultExceptionClassifier.java:24` — non-retryable: `IllegalArgumentException`, `IllegalStateException`, `NullPointerException`, `SecurityException`).
+- **In-memory idempotency** is single-instance only. For multi-instance production, provide your own `IdempotencyStore` bean (e.g. Redis) — Manto auto-configures via `@ConditionalOnMissingBean` (`MantoAutoConfiguration.java:166`). `manto.idempotency.enabled` (`MantoProperties.java:203`) does **not** auto-filter duplicates — your `handle()` must check `isProcessed`/`markProcessed` as `PaymentHandler.java:51` does. See `README.md#idempotency` and `docs/ERROR_HANDLING.md`.
+- **Retry / DLT wiring** is via `MantoAutoConfiguration.kafkaListenerContainerFactory` (`MantoAutoConfiguration.java:179`): retry uses `ExponentialBackOff` built from `manto.retry.*`; classification uses `DefaultExceptionClassifier` (`manto-kafka/DefaultExceptionClassifier.java:24` — non-retryable: `IllegalArgumentException`, `IllegalStateException`, `NullPointerException`, `SecurityException`). **Override must be type `DefaultExceptionClassifier`** (not just `ExceptionClassifier`) due to `@ConditionalOnMissingBean` on that type (`MantoAutoConfiguration.java:153`), use `Set.of()` to make every exception retryable.
+- **Metrics** — `SimpleMeterRegistry` fallback (`MantoAutoConfiguration.java:93`) is in-memory only, not scrapeable. Add `spring-boot-starter-actuator` + `micrometer-registry-prometheus` to expose `manto.messages.*` via `/actuator/prometheus` (see `docs/OBSERVABILITY.md`).
 - **Sensitive data** — example logs only `orderId`/`correlationId`; do not log full payloads. See `docs/SECURITY_MODEL.md`.
+- **Troubleshooting Kafka** — if `docker run` exits, `docker logs kafka` usually shows listener misconfiguration. Use the included `docker-compose.yml` instead, which sets explicit listeners and waits for the broker to be ready.

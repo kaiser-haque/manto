@@ -181,11 +181,13 @@ OrderService --publish--> order-events --@MantoListener--> PaymentHandler --publ
 ```bash
 mvn install -DskipTests
 docker run -d --name kafka -p 9092:9092 apache/kafka:3.9.1
+# If the container exits, check logs: docker logs kafka
+# Alternative: docker compose -f examples/order-payment/docker-compose.yml up -d
 cd examples/order-payment && mvn spring-boot:run
 curl -X POST http://localhost:8080/orders -H 'Content-Type: application/json' -d '{"orderId":"order-123","amount":5000}'
 ```
 
-See `examples/order-payment/README.md` for transient vs. permanent failure demos and header inspection.
+The `docker run` form works on most hosts without extra env; if your Docker setup requires explicit listeners, use the compose file at `examples/order-payment/docker-compose.yml`. First pull is ~1 min and dominates start-up. See `examples/order-payment/README.md` for transient vs. permanent failure demos and header inspection.
 
 ## Configuration
 
@@ -228,14 +230,17 @@ throw new RuntimeException("transient gateway timeout");
 throw new IllegalArgumentException("invalid amount");
 ```
 
-Non-retryable types by default (`DefaultExceptionClassifier.java:24`): `IllegalArgumentException`, `IllegalStateException`, `NullPointerException`, `SecurityException`. All other exceptions are retryable (`ExceptionClassifier.java:11`). Customize by providing your own `DefaultExceptionClassifier` bean:
+Non-retryable types by default (`DefaultExceptionClassifier.java:24`): `IllegalArgumentException`, `IllegalStateException`, `NullPointerException`, `SecurityException`. All other exceptions are retryable (`ExceptionClassifier.java:11`). Customize by providing your **own `DefaultExceptionClassifier` bean** (type must be `DefaultExceptionClassifier`, not just the `ExceptionClassifier` interface — `MantoAutoConfiguration.java:153` wires `DefaultExceptionClassifier` specifically via `@ConditionalOnMissingBean`):
 
 ```java
 @Bean
 public DefaultExceptionClassifier mantoExceptionClassifier() {
     return new DefaultExceptionClassifier(Set.of(IllegalArgumentException.class, ValidationException.class));
 }
+// Pass Set.of() to make every exception retryable.
 ```
+
+Providing a bean of type `ExceptionClassifier` alone will not rewire the container factory.
 
 ## Dead-Letter Topic (DLT)
 
@@ -246,7 +251,7 @@ Each DLT record carries (`manto-core/MantoHeaders.java:16` + `MantoDeadLetterPub
 - `Manto-Event-Id`, `Manto-Event-Type`, `Manto-Event-Version`, `Manto-Correlation-Id`, `Manto-Source` (copied from original if present)
 - `Manto-DLT-Original-Topic`, `Manto-DLT-Original-Partition`, `Manto-DLT-Original-Offset`, `Manto-DLT-Original-Timestamp`
 - `Manto-DLT-Exception-Class`, `Manto-DLT-Exception-Message`
-- `Manto-DLT-Retry-Count` (equals `maxAttempts - 1`), `Manto-DLT-Failure-Timestamp` (ISO-8601), `Manto-DLT-Trace-Id` (UUID)
+- `Manto-DLT-Retry-Count` — **not per-record**, equals configured `maxAttempts - 1` (e.g. `2` when `maxAttempts=3` even if the record failed on the first attempt; `MantoDeadLetterPublishingRecoverer.java:92`), `Manto-DLT-Failure-Timestamp` (ISO-8601), `Manto-DLT-Trace-Id` (UUID)
 
 Observe DLT with a plain `@MantoListener`:
 
@@ -311,7 +316,7 @@ public IdempotencyStore idempotencyStore(RedisTemplate<String, String> redis) {
 }
 ```
 
-Idempotency wiring can be disabled with `manto.idempotency.enabled=true/false`, but the bean is always available for explicit guard checks; `manto-kafka` does not auto-filter duplicates — the handler decides.
+`manto.idempotency.enabled` (`MantoProperties.java:203`, default `true`) is a gating flag for **your** handler code — Manto does not auto-skip duplicates. The `IdempotencyStore` bean is always available regardless of the flag (`MantoAutoConfiguration.java:166`); when `false` you simply stop consulting it. The handler decides (pattern below).
 
 ## Metrics
 
@@ -334,7 +339,7 @@ manto:
     enabled: false
 ```
 
-A `SimpleMeterRegistry` is auto-configured when no `MeterRegistry` bean exists (`MantoAutoConfiguration.java:93`), so metrics work out of the box without Actuator. With `spring-boot-starter-actuator`, they are exported to Prometheus/any Micrometer registry.
+A `SimpleMeterRegistry` is auto-configured when no `MeterRegistry` bean exists (`MantoAutoConfiguration.java:93`), so counters/timers are queryable via injection and in tests. It is **in-memory only and not scrapeable** — add `spring-boot-starter-actuator` (and `micrometer-registry-prometheus`) to export to Prometheus. With Actuator, any `MeterRegistry` bean (e.g. `PrometheusMeterRegistry`) is reused automatically.
 
 See `docs/OBSERVABILITY.md` for correlation ID logging details.
 
@@ -352,10 +357,10 @@ Use it for SLF4J/MDC enrichment or downstream propagation (see producer example 
 
 `examples/order-payment` — minimal Spring Boot app showing the whole flow:
 
-- `order/OrderService.java:24` — `producer.publish("order-events", event)`
-- `payment/PaymentHandler.java:31` — `@MantoListener` + `CorrelationIdContext` + idempotency + retry/DLT triggering
-- `payment/PaymentService.java:26` — `MantoKafkaProducer.publish("payment-events", event, correlationId)` downstream propagation
-- `payment/PaymentDltHandler.java:19` — DLT observer
+- `src/main/java/com/example/orderpayment/order/OrderService.java:37` — `producer.publish("order-events", event)`
+- `src/main/java/com/example/orderpayment/payment/PaymentHandler.java:40` — `@MantoListener` + `CorrelationIdContext` + idempotency + retry/DLT triggering
+- `src/main/java/com/example/orderpayment/payment/PaymentService.java:37` — `MantoKafkaProducer.publish("payment-events", event, correlationId)` downstream propagation
+- `src/main/java/com/example/orderpayment/payment/PaymentDltHandler.java:28` — DLT observer
 
 Run guide and log expectations: `examples/order-payment/README.md`. Index of examples: `examples/README.md`.
 

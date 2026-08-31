@@ -12,12 +12,20 @@
 ### MantoProducer
 
 ```java
+// manto-core: framework abstraction (keep small)
 public interface MantoProducer {
     <T> void publish(String topic, T event);
 }
 ```
 
-Additional overloads may be added only when justified.
+The Kafka implementation `MantoKafkaProducer` (`manto-kafka/MantoKafkaProducer.java:64`) adds one intentional overload for correlation propagation:
+
+```java
+// manto-kafka: Kafka-backed implementation only
+public <T> void publish(String topic, T event, String correlationId) { ... }
+```
+
+The interface stays minimal so downstream code can stay framework-agnostic. When a consumer publishes a downstream event, cast to `MantoKafkaProducer` if present and forward `CorrelationIdContext.get()` (see `README.md#propagating-correlation-ids-downstream`, `docs/OBSERVABILITY.md#producer-side`, and `examples/order-payment/src/main/java/com/example/orderpayment/payment/PaymentService.java:37`). If `correlationId` is `null`, the producer generates a new UUID equal to the new `eventId` (`MantoKafkaProducer.java:95`). Additional overloads may be added only when justified.
 
 ### MantoEventMetadata
 
