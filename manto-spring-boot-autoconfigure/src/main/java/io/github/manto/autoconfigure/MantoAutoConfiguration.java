@@ -41,8 +41,6 @@ import org.springframework.kafka.support.serializer.JsonDeserializer;
 import org.springframework.kafka.support.serializer.JsonSerializer;
 import org.springframework.util.backoff.ExponentialBackOff;
 
-import io.micrometer.core.instrument.MeterRegistry;
-
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;

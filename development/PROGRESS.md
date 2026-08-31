@@ -2,9 +2,9 @@
 
 ## Current day
 
-Day 25 — Example application.
+Day 26 — Documentation.
 
-Next session: Day 26 — Documentation.
+Next session: Day 27 — CI.
 
 ## Current version
 
@@ -32,12 +32,12 @@ Next session: Day 26 — Documentation.
 - [x] Correlation IDs
 - [x] Integration tests
 - [x] Example application
-- [ ] Documentation
+- [x] Documentation
 - [ ] Maven Central release
 
 ## Current task
 
-Day 25 — Example application.
+Day 26 — Documentation.
 
 ## Day 25 work
 
@@ -361,24 +361,37 @@ Day 25 — Example application.
 - Task plans: tasks/DAY-01.md through tasks/DAY-30.md.
 - No Kafka or Maven functionality implemented (Days 2+).
 
+## Day 26 work
+
+- Audited every documented API and configuration against the actual implementation (`MantoProperties.java:19`, `MantoAutoConfiguration.java:66`, `MantoKafkaProducer.java:26`, `MantoListener.java:18`, `DefaultExceptionClassifier.java:20`, `MantoMetrics.java:16`, `MantoHeaders.java:8`, `MantoDeadLetterPublishingRecoverer.java:23`, `MantoListenerValidator.java:16`, `CorrelationIdContext.java:13`, `InMemoryIdempotencyStore.java:23`, `ExponentialBackoffStrategy.java:13`, `DefaultDeadLetterHandler.java:29`). Removed invented/hallucinated features; every property, header, and metric name now matches the source file.
+- `README.md`: Complete rewrite for an external developer — installation (Java 21, Spring Boot 3.5.16, `0.1.0-SNAPSHOT` from local `mvn install`), auto-configuration bean inventory, quick start (configure `manto.kafka.bootstrap-servers`, producer `MantoProducer.publish(topic, event)` contract at `manto-core/MantoProducer.java:18`, correlation propagation via `MantoKafkaProducer.publish(topic, event, correlationId)` overload at `manto-kafka/MantoKafkaProducer.java:64`, consumer `@MantoListener` with validator constraints), configuration summary table, retry (backoff formula, `maxAttempts` → `ExponentialBackOff` mapping at `MantoAutoConfiguration.java:198`), DLT (suffix routing, full header table from `MantoHeaders.java:16`), idempotency (`IdempotencyStore` + `InMemoryIdempotencyStore` single-instance warning per ADR-005, `@ConditionalOnMissingBean` override example), metrics (6 instruments with tags at `MantoMetrics.java:17`, disable via `manto.observability.enabled`, `SimpleMeterRegistry` fallback at `MantoAutoConfiguration.java:93`), correlation IDs (`MantoListenerInterceptor.java:15` + `CorrelationIdContext.java:13` ThreadLocal lifecycle), example application cross-links, testing instructions, and docs index.
+- `docs/CONFIGURATION.md`: Complete rewrite — full YAML example, property reference table with types/defaults/constraints/source file lines (`MantoProperties.java:84/98/179/219`), validation failures, Spring Kafka vs. Manto boundary, `@ConditionalOnMissingBean` override catalogue, minimal vs. full config.
+- `docs/ERROR_HANDLING.md`: Complete rewrite — lifecycle diagram, retry enable/maxAttempts/backoff mapping to `MantoAutoConfiguration.java:179` and `ExponentialBackoffStrategy.java:47`, exception classification table (`DefaultExceptionClassifier.java:25` — `IllegalArgumentException`, `IllegalStateException`, `NullPointerException`, `SecurityException` as non-retryable via `isInstance`), custom `DefaultExceptionClassifier` bean snippet, DLT routing (`topicSuffix` destination resolver at `MantoDeadLetterPublishingRecoverer.java:45`), full 14-header DLT table, programmatic `DefaultDeadLetterHandler` note (10s send timeout at `DefaultDeadLetterHandler.java:60`), observer `@MantoListener` example at `PaymentDltHandler.java:28`, redelivery/idempotency interaction, logging guidance.
+- `docs/OBSERVABILITY.md`: Complete rewrite — 7-row metric table (2 rows for published success/failure), enable flag, `MantoAutoConfiguration.java:88` registry wiring (Actuator vs. `SimpleMeterRegistry` fallback), PromQL/Actuator snippets, producer correlation header generation (`MantoKafkaProducer.java:91`), consumer interceptor lifecycle (`MantoListenerInterceptor.java:29`), `CorrelationIdContext.java:13` ThreadLocal + MDC enrichment pattern, `MantoHeaderExtractor.java:29` defaults, logging rules (200-char payload preview at `MantoJsonDeserializer.java:112`).
+- `examples/order-payment/README.md`: Rewrote feature table with exact source paths under `src/main/java/com/example/orderpayment/...` plus line numbers, corrected transient/permanent failure amounts (999 vs. ≤0 per `PaymentHandler.java:59/67`), added header inspection with `print.headers=true`, clarified `max-attempts` includes initial attempt, documented all key files.
+- Fixed duplicate `import io.micrometer.core.instrument.MeterRegistry;` in `MantoAutoConfiguration.java` (harmless but confusing during doc audit).
+- Verified example still compiles: `mvn install -DskipTests` → BUILD SUCCESS; `mvn -f examples/order-payment/pom.xml compile` → BUILD SUCCESS (8 sources).
+- No public API changes; docs-only task.
+
 ## Notes
 
 Update this file at the end of every daily session.
 
 ## Tests run
 
-- `mvn -pl manto-core -am test` — BUILD SUCCESS, 19 tests
-- `mvn -pl manto-kafka -am test` — BUILD SUCCESS, 129 tests (including 2 Testcontainers integration tests)
-- `mvn test -Dsurefire.failIfNoSpecifiedTests=false -Dtest=MantoPropertiesTest` — BUILD SUCCESS across reactor
-- `mvn install -DskipTests -pl manto-core,manto-kafka,manto-spring-boot-autoconfigure,manto-spring-boot-starter -am` — BUILD SUCCESS
-- `mvn -f examples/order-payment/pom.xml compile` — BUILD SUCCESS, 8 sources compiled
+- `mvn -pl manto-core -am test "-Dsurefire.failIfNoSpecifiedTests=false"` — BUILD SUCCESS, 19 tests (BackoffStrategy 1 + DeadLetterHandler 1 + ExceptionClassifier 1 + MantoEventMetadata 10 + MantoHeaders 1 + MantoListener 4 + RetryPolicy 1)
+- `mvn -pl manto-kafka -am test "-Dsurefire.failIfNoSpecifiedTests=false"` — BUILD SUCCESS, 129 tests (including CorrelationIdPropagationIntegrationTest 3 + MantoKafkaProducerIntegrationTest 2 via Testcontainers `apache/kafka:3.9.1`)
+- `mvn install -DskipTests "-Dmaven.javadoc.skip=true"` — BUILD SUCCESS across 5 reactor modules
+- `mvn -f examples/order-payment/pom.xml compile -o` — BUILD SUCCESS, 8 sources compiled (verifies all README/Docs example snippets compile against actual API: `MantoProducer.publish`, `MantoKafkaProducer.publish(topic,event,correlationId)`, `@MantoListener(topic,groupId)`, `CorrelationIdContext.get()`, `IdempotencyStore`, `DefaultExceptionClassifier` bean, `MantoProperties` validation)
 
 ## Known issues
 
-- The Kafka container image pull dominates the integration test runtime on first run (~1 minute; ~65 s total for the test). No functional issues.
+- The Kafka container image pull dominates the integration test runtime on first run (~1 minute; ~25–45 s per Testcontainers suite). No functional issues.
 - SLF4J NOP warnings appear during tests; no logger binding is configured (non-blocking).
 - Example requires a running Kafka at `localhost:9092` and a prior `mvn install -DskipTests` to resolve `0.1.0-SNAPSHOT` from local repo (not yet on Maven Central).
+- `MantoDeadLetterPublishingRecoverer` uses a `ThreadLocal<Exception>` to propagate the exception to `createProducerRecord`; DLT_RETRY_COUNT is derived from `maxAttempts - 1` (configuration-level, not per-record) — documented in OBSERVABILITY/ERROR_HANDLING.
+- MantoListener registration still requires `kafkaListenerContainerFactory` named exactly — documented in CONFIGURATION.
 
 ## Next task
 
-Day 26 — Documentation. Expected commit message for Day 25: `docs: add Manto example application`
+Day 27 — CI. Expected commit message for Day 26: `docs: complete Manto user documentation`
