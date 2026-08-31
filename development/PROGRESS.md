@@ -2,9 +2,9 @@
 
 ## Current day
 
-Day 24 — Integration tests.
+Day 25 — Example application.
 
-Next session: Day 25 — documentation.
+Next session: Day 26 — Documentation.
 
 ## Current version
 
@@ -31,12 +31,45 @@ Next session: Day 25 — documentation.
 - [x] Metrics
 - [x] Correlation IDs
 - [x] Integration tests
+- [x] Example application
 - [ ] Documentation
 - [ ] Maven Central release
 
 ## Current task
 
-Day 24 — Integration tests.
+Day 25 — Example application.
+
+## Day 25 work
+
+- `examples/order-payment` — new standalone Spring Boot application demonstrating Manto end-to-end (Order Service → `order-events` → Payment Service → `payment-events`):
+  - `OrderPaymentApplication.java` — entry point, docs the full flow diagram
+  - `order/OrderCreatedEvent.java` — minimal record (`orderId`, `amount`) published as JSON; Manto adds standard headers automatically
+  - `order/OrderService.java:24` — **producer**: `producer.publish("order-events", event)` with constructor-injected `MantoProducer`; no KafkaTemplate boilerplate
+  - `order/OrderController.java` — minimal `POST /orders` to trigger flow without Kafka tooling (`curl` examples in README)
+  - `payment/PaymentCompletedEvent.java` — downstream event (`orderId`, `status`, `processedAt`)
+  - `payment/PaymentService.java:26` — **producer + metadata propagation**: `MantoKafkaProducer.publish("payment-events", event, correlationId)` forwards upstream `CorrelationIdContext.get()` so traces correlate across services
+  - `payment/PaymentHandler.java:31` — **`@MantoListener`** + **metadata** + **retry** + **idempotency**:
+    - `@MantoListener(topic="order-events", groupId="payment-service")` — one annotation, no manual container setup
+    - `CorrelationIdContext.get()` — reads `Manto-Correlation-Id` header populated by Manto interceptor
+    - Idempotency guard: `IdempotencyStore.isProcessed(correlationId)` / `markProcessed` after success (at-least-once → effectively-once for single instance; distributed store can replace bean via `@ConditionalOnMissingBean`)
+    - Permanent failure: `IllegalArgumentException` for `amount<=0` → non-retryable → straight to DLT
+    - Transient failure: `RuntimeException` for `amount==999` → retryable → exponential backoff (`manto.retry.*`) up to `max-attempts`
+  - `payment/PaymentDltHandler.java:19` — **DLT** observer: `@MantoListener(topic="order-events.DLT", groupId="payment-service-dlt")` logs poison messages; DLT headers include `Manto-DLT-Original-Topic`, `Manto-DLT-Exception-Class`, `Manto-DLT-Retry-Count`, etc.
+  - `src/main/resources/application.yml` — complete Manto config: `kafka.bootstrap-servers`, `retry.enabled/max-attempts/backoff`, `dlt.enabled/topic-suffix`, `idempotency.enabled`, `observability.enabled`
+  - `pom.xml` — standalone Maven project (Spring Boot 3.5.16, Java 21) depending on `manto-spring-boot-starter:0.1.0-SNAPSHOT`; requires `mvn install -DskipTests` at repo root first
+  - `README.md` — GitHub-discoverable guide with diagram, feature table (file:line for each demo), prerequisites, `docker run apache/kafka:3.9.1`, `mvn spring-boot:run`, `curl` for happy/transient/permanent paths, log expectations, `kafka-console-consumer` for `payment-events` and `order-events.DLT` with headers
+  - `examples/README.md` — index for future examples
+
+- `README.md` (root): Added section 5 “Run the example” linking to `examples/order-payment` with diagram, `mvn install`, `docker run`, and `curl` snippet; references feature docs
+
+- Design choices:
+  - No unnecessary business complexity: events are `orderId+amount`, payment is log+publish; no DB, no over-engineering
+  - Example is not added to root reactor modules — standalone build avoids polluting `mvn test` while still being verifiable via `mvn -f examples/order-payment/pom.xml compile`
+  - Constructor injection, immutable records, slf4j with correlationId, no sensitive payload logging — matches `development/CODING_STANDARDS.md`
+
+- Tests:
+  - Verified example compiles: `mvn install -DskipTests -pl manto-core,manto-kafka,manto-spring-boot-autoconfigure,manto-spring-boot-starter -am` → BUILD SUCCESS; `mvn -f examples/order-payment/pom.xml compile` → BUILD SUCCESS (8 sources)
+  - Existing tests still pass: `mvn test -pl manto-core -am` → 19 tests pass; `mvn test -pl manto-kafka -am` → 129 tests pass; `mvn test -Dsurefire.failIfNoSpecifiedTests=false -Dtest=MantoPropertiesTest` across reactor → BUILD SUCCESS
 
 ## Day 24 work
 
@@ -334,15 +367,18 @@ Update this file at the end of every daily session.
 
 ## Tests run
 
-- `mvn -pl manto-kafka -am test` — BUILD SUCCESS, 148 unit tests (19 core + 129 kafka).
-- `mvn -pl manto-spring-boot-autoconfigure -am test` — BUILD SUCCESS, 183 tests (19 core + 129 kafka + 25 autoconfigure, including 9 E2E integration tests).
-- `mvn test` — BUILD SUCCESS, 183 tests (all modules).
+- `mvn -pl manto-core -am test` — BUILD SUCCESS, 19 tests
+- `mvn -pl manto-kafka -am test` — BUILD SUCCESS, 129 tests (including 2 Testcontainers integration tests)
+- `mvn test -Dsurefire.failIfNoSpecifiedTests=false -Dtest=MantoPropertiesTest` — BUILD SUCCESS across reactor
+- `mvn install -DskipTests -pl manto-core,manto-kafka,manto-spring-boot-autoconfigure,manto-spring-boot-starter -am` — BUILD SUCCESS
+- `mvn -f examples/order-payment/pom.xml compile` — BUILD SUCCESS, 8 sources compiled
 
 ## Known issues
 
 - The Kafka container image pull dominates the integration test runtime on first run (~1 minute; ~65 s total for the test). No functional issues.
 - SLF4J NOP warnings appear during tests; no logger binding is configured (non-blocking).
+- Example requires a running Kafka at `localhost:9092` and a prior `mvn install -DskipTests` to resolve `0.1.0-SNAPSHOT` from local repo (not yet on Maven Central).
 
 ## Next task
 
-Day 25 — documentation. Expected commit message for Day 24: `feat: comprehensive end-to-end integration tests`
+Day 26 — Documentation. Expected commit message for Day 25: `docs: add Manto example application`

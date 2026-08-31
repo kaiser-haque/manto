@@ -58,6 +58,27 @@ The starter provides auto-configuration for:
 - `ConcurrentKafkaListenerContainerFactory` with JSON deserialization
 - Automatic discovery and registration of `@MantoListener` methods
 
+### 5. Run the example
+
+A minimal order → payment flow is available under [`examples/order-payment`](examples/order-payment/):
+
+```
+OrderService --publish--> order-events --@MantoListener--> PaymentHandler --publish--> payment-events
+                                              | retry + DLT + idempotency
+                                              └─► order-events.DLT
+```
+
+It demonstrates producer, `@MantoListener`, metadata/correlation, retry with exponential backoff, DLT, and idempotency:
+
+```bash
+mvn install -DskipTests
+docker run -d --name kafka -p 9092:9092 apache/kafka:3.9.1
+cd examples/order-payment && mvn spring-boot:run
+curl -X POST http://localhost:8080/orders -H 'Content-Type: application/json' -d '{"orderId":"order-123","amount":5000}'
+```
+
+See [`examples/order-payment/README.md`](examples/order-payment/README.md) for details.
+
 ## v1.0 goal
 
 Provide a production-oriented abstraction over Spring Kafka with:

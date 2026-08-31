@@ -1,0 +1,37 @@
+server:
+  port: 8080
+
+manto:
+  kafka:
+    bootstrap-servers: localhost:9092
+
+  # retry: transient failures (RuntimeException) are retried with exponential backoff
+  retry:
+    enabled: true
+    max-attempts: 3
+    backoff:
+      initial-delay: 1000      # 1s -> 2s -> 4s (multiplier 2.0, capped by max-delay)
+      multiplier: 2.0
+      max-delay: 10000
+
+  # DLT: exhausted retries or non-retryable exceptions (IllegalArgumentException, etc.)
+  # are published to <original-topic>.DLT with diagnostic headers
+  dlt:
+    enabled: true
+    topic-suffix: .DLT
+
+  # idempotency: in-memory store (single instance only; see ADR-005)
+  idempotency:
+    enabled: true
+
+  observability:
+    enabled: true
+
+logging:
+  level:
+    com.example.orderpayment: INFO
+    io.github.manto: INFO
+
+# Spring Kafka — Manto wires a ConcurrentKafkaListenerContainerFactory
+# named "kafkaListenerContainerFactory" that @MantoListener uses automatically.
+# No manual consumer factory or deserializer setup needed.
