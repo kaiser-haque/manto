@@ -105,9 +105,14 @@ jobs:
             echo "::error::1.0.0 release is not allowed today. Use 0.9.0 RC or a dry-run. See docs/MAVEN_CENTRAL.md."
             exit 1
           fi
-          if [[ "$VERSION" == *"-SNAPSHOT" ]]; then
-            echo "::error::Release version must not end with -SNAPSHOT: $VERSION"
-            exit 1
+          # SNAPSHOT is only forbidden for real publishes; dryRun validates bundle from SNAPSHOT pom
+          if [[ "${{ github.event_name }}" != "workflow_dispatch" || "${{ inputs.dryRun }}" != "true" ]]; then
+            if [[ "$VERSION" == *"-SNAPSHOT" ]]; then
+              echo "::error::Release version must not end with -SNAPSHOT: $VERSION (use a release version like 0.9.0, or run with dryRun:true to validate SNAPSHOT)"
+              exit 1
+            fi
+          else
+            echo "::notice::dryRun with SNAPSHOT $VERSION — allowed for bundle validation (no Central upload)"
           fi
 
       - name: Verify tag matches pom (when tag push)
