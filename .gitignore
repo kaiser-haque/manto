@@ -17,3 +17,4 @@ target/
 Thumbs.db
 
 dependency-reduced-pom.xml
+*KEYS.md
