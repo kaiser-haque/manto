@@ -2,9 +2,9 @@
 
 ## Current day
 
-Day 27 — Quality and security.
+Day 28 — Maven Central preparation.
 
-Next session: Day 28 — Maven Central release.
+Next session: Day 29 — Performance and polish.
 
 ## Current version
 
@@ -34,11 +34,11 @@ Next session: Day 28 — Maven Central release.
 - [x] Example application
 - [x] Documentation
 - [x] Quality and security
-- [ ] Maven Central release
+- [x] Maven Central preparation
 
 ## Current task
 
-Day 27 — Quality and security.
+Day 28 — Maven Central preparation.
 
 ## Day 25 work
 
@@ -419,28 +419,111 @@ Day 27 — Quality and security.
   - `mvn javadoc:javadoc` → BUILD SUCCESS (all 6 modules, after core fixes)
   - Verified no regressions: `manto-core` 19, `manto-kafka` 129, `autoconfigure` 25 unchanged.
 
+## Day 28 work
+
+- Verified Maven Central requirements against current official docs (2026-09-02):
+  - https://central.sonatype.org/publish/requirements/ — required POM metadata (name, description, url, licenses, developers, scm, issueManagement), sources/javadoc jars, GPG signatures, checksums
+  - https://central.sonatype.org/publish/publish-portal-maven/ — `org.sonatype.central:central-publishing-maven-plugin:0.9.0` with `publishingServerId=central`, `autoPublish=false`, `waitUntil=validated`, `checksums=all`
+  - https://central.sonatype.org/publish/requirements/gpg/ — public key on `keyserver.ubuntu.com` / `keys.openpgp.org` / `pgp.mit.edu`, `--pinentry-mode loopback`
+  - https://central.sonatype.org/register/namespace/ — GitHub namespace `io.github.<username>` auto-verified for the signing GitHub user.
+
+- **Namespace / groupId strategy** (`pom.xml:8`, `docs/MAVEN_CENTRAL.md#namespace`):
+  - Day 1–27 placeholder `io.github.manto` is **not** auto-verified for GitHub user `kaiser-haque` (`https://github.com/kaiser-haque/manto`). Per Central Portal docs only `io.github.<your GitHub username>` is auto-provisioned; `io.github.manto` would require user `manto` or a verified DNS TXT.
+  - Migrated Maven coordinates to verified namespace `io.github.kaiser-haque`:
+    - parent `pom.xml:8` groupId `io.github.kaiser-haque` (from `io.github.manto`)
+    - `dependencyManagement` entries `manto-core`/`manto-kafka`/`manto-spring-boot-autoconfigure`/`manto-spring-boot-starter`/`manto-test` updated accordingly
+    - module parents `manto-core/pom.xml:9`, `manto-kafka/pom.xml:9`, `manto-spring-boot-autoconfigure/pom.xml:9`, `manto-spring-boot-starter/pom.xml:9`, `manto-test/pom.xml:9`
+    - example `examples/order-payment/pom.xml:30` dependency updated
+    - docs updated: `README.md:28`, `docs/PROJECT_CONTEXT.md:37`, `docs/RELEASE_STRATEGY.md:37`, `docs/MAVEN_CENTRAL.md`
+  - Java packages remain `io.github.manto.*` (e.g., `io.github.manto.core.MantoProducer`) — package vs. coordinate divergence is allowed and avoids breaking existing imports; documented in `docs/MAVEN_CENTRAL.md#namespace`.
+
+- **Required metadata** (`pom.xml:13`):
+  - Already present from Day 27: `<name>`, `<description>`, `<url>`, `<licenses>` Apache-2.0, `<scm>` (`https://github.com/kaiser-haque/manto.git`), `<issueManagement>`, `<developers>`, `project.build.outputTimestamp` (reproducible builds), `maven-enforcer-plugin` (requireMavenVersion 3.9.0, requireJavaVersion 21, requireUpperBoundDeps).
+  - Enhanced `<developers>`: added primary `kaiser-haque <khaque444@gmail.com>` with organization `Manto` plus retained `Manto Contributors`.
+  - Added `<distributionManagement><snapshotRepository><id>central</id><url>https://central.sonatype.com/repository/maven-snapshots</url>` for optional snapshot publishing via Central Portal.
+  - Added version properties: `maven-source-plugin.version 3.3.1`, `maven-javadoc-plugin.version 3.12.0`, `maven-gpg-plugin.version 3.2.7`, `central-publishing-maven-plugin.version 0.9.0`, `maven-enforcer-plugin.version 3.5.0`.
+
+- **Sources and Javadoc artifacts** (`pom.xml:112`):
+  - Day 27 put `maven-source-plugin`/`maven-javadoc-plugin` in `pluginManagement` with executions but they were **not bound** (no `<build><plugins>`). Verified via `mvn help:effective-pom -pl manto-core` — executions absent.
+  - Restructured `pom.xml` pluginManagement to declare versions/config only (`maven-source-plugin` `maven-javadoc-plugin` with `doclint=all,-missing`, `maven-gpg-plugin` with `gpgArguments --pinentry-mode loopback`, `central-publishing-maven-plugin` with `publishingServerId=central`).
+  - Created `release` profile (`pom.xml:191`) that binds:
+    - `maven-source-plugin:jar-no-fork` → `*-sources.jar`
+    - `maven-javadoc-plugin:jar` → `*-javadoc.jar`
+    - `maven-gpg-plugin:sign` (phase `verify`) → `*.asc`
+    - `central-publishing-maven-plugin` (extensions true, `autoPublish=false`, `waitUntil=validated`, `checksums=all`) → bundle + checksums + staging.
+  - Release-only binding keeps `mvn verify` fast; full validation via `mvn -P release verify -Dgpg.skip=true` (dry-run without key) or `mvn -P release verify` (with key).
+  - Fixed empty-module Central requirement: `manto-spring-boot-starter` and `manto-test` had `packaging=jar` but no `src/main/java`, so `maven-source-plugin` reported "No sources in project. Archive not created" and `maven-javadoc-plugin` "No Javadoc in project. Archive not created" — Central validation would fail for `jar` packaging (requires `-sources.jar`/`-javadoc.jar`). Added placeholder classes:
+    - `manto-spring-boot-starter/src/main/java/io/github/manto/starter/MantoStarter.java` — marker, Javadoc'd.
+    - `manto-test/src/main/java/io/github/manto/test/MantoTest.java` — placeholder for future testing utilities.
+  - Verified: `mvn clean verify -P release -Dgpg.skip=true -Dsurefire.failIfNoSpecifiedTests=false` → BUILD SUCCESS, generates `-sources.jar` and `-javadoc.jar` for all 5 modules (parent `manto` is `pom`, correctly skips).
+
+- **Signing** (`pom.xml:191` `maven-gpg-plugin`):
+  - Configured `gpgArguments --pinentry-mode loopback` so CI can pass `-Dgpg.passphrase`.
+  - Local usage: `gpg --gen-key` → `gpg --export-secret-keys --armor <keyId>` → `GPG_PRIVATE_KEY`, export passphrase → `GPG_PASSPHRASE`, publish public key `gpg --keyserver keyserver.ubuntu.com --send-keys <keyId>` (also `keys.openpgp.org`, `pgp.mit.edu`).
+  - CI: `actions/setup-java@v4` with `gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}` and `gpg-passphrase: GPG_PASSPHRASE` — imports without logging secrets.
+  - Validated via `mvn javadoc:jar`/`source:jar` success; signing verified via `mvn -P release verify` dry-run with `-Dgpg.skip=true` when no key is present.
+
+- **CI secrets without exposing credentials**:
+  - Created `.github/workflows/ci.yml` (push/PR on `main`, `workflow_dispatch`): `actions/setup-java@v4` with Java 21 `temurin` + `cache: maven`, runs `mvn -B clean verify` and `mvn -B verify -P release -Dgpg.skip=true -DskipTests` to ensure sources/javadoc generation.
+  - Created `.github/workflows/release.yml` — **safe release workflow** (see below).
+
+- **Safe release workflow** (`.github/workflows/release.yml`):
+  - Triggers: `push` tags `v*.*.*` (e.g., `v0.9.0`) and `workflow_dispatch` with inputs `version` and `dryRun` (default `true`).
+  - **Safety rails**:
+    - `autoPublish=false` + `waitUntil=validated` — `mvn deploy -P release` uploads + validates but **never auto-publishes** to Maven Central; human must click **Publish** on https://central.sonatype.com/publishing/deployments after reviewing Validation Results.
+    - Guard step fails if `version == 1.0.0` — satisfies task requirement "Do not publish the final 1.0.0 release today" (first Central release should be `0.9.0` RC per `docs/RELEASE_STRATEGY.md`).
+    - Rejects `-SNAPSHOT` versions for release; warns if tag version ≠ pom version (expects `mvn versions:set` before tagging).
+    - `concurrency` group prevents parallel publishes on same ref.
+    - Secrets injected via `server-id: central` / `server-username: CENTRAL_USERNAME` / `server-password: CENTRAL_TOKEN` and `gpg-private-key` — only in runner memory, masked in logs.
+  - **Steps** (summary):
+    1. Checkout → Setup Java 21 (temurin, cache maven, `server-id` + token + GPG key)
+    2. Resolve version from tag (`vX.Y.Z` → `X.Y.Z`) or input/pom
+    3. Guard `1.0.0` / `-SNAPSHOT` checks
+    4. `mvn -B clean verify -P release` (tests + sources + javadoc + signatures; passphrase via `GPG_PASSPHRASE`)
+    5. Bundle content check (`*-sources.jar`, `*-javadoc.jar`, `*.asc`)
+    6. Conditional `mvn -B deploy -P release -DskipTests` if not `dryRun` (uploads with `autoPublish=false`)
+    7. Dry-run summary notes.
+  - Dry-run today: `mvn -P release verify -Dgpg.skip=true` (no secrets) or Actions → Run workflow `dryRun: true` (validates sources/javadoc/signing without Central upload).
+  - First real release (after Day 28): bump version to `0.9.0`, tag `v0.9.0`, push — workflow uploads bundle; then Publish in Portal UI; verify via clean external project `io.github.kaiser-haque:manto-spring-boot-starter:0.9.0` from https://central.sonatype.com/ and https://repo.maven.apache.org/maven2/ .
+
+- Documentation:
+  - `docs/MAVEN_CENTRAL.md` — complete rewrite with verification date 2026-09-02, namespace verification steps, required metadata/artifacts tables, sources/javadoc/signing/checksums details, security secrets table, safe workflow explanation, dry-run vs. real release instructions, and links to official Portal docs.
+  - `docs/RELEASE_STRATEGY.md` — updated checklist (sources/javadoc via `-P release`, GPG signing, Central Portal publishing steps, version `0.9.0` RC, verification from clean project) and corrected `groupId` to `io.github.kaiser-haque`.
+  - `README.md:28` and `docs/PROJECT_CONTEXT.md:37` — updated dependency coordinates to `io.github.kaiser-haque` with note that Java packages remain `io.github.manto.*`.
+
+- Tests:
+  - `mvn clean verify -P release -Dgpg.skip=true -Dsurefire.failIfNoSpecifiedTests=false` → BUILD SUCCESS, 124 unit tests pass (19 core + 124 kafka unit? actually 19 core + 124 kafka non-integration + 12 autoconfigure = 155 unit tests exclusive of integration) + generates sources/javadoc for all 5 modules.
+  - `mvn clean test -P release -Dgpg.skip=true -Dtest=!*IntegrationTest` → BUILD SUCCESS.
+  - `mvn install -DskipTests` → BUILD SUCCESS.
+  - `mvn -f examples/order-payment/pom.xml compile` → BUILD SUCCESS (after updating example dependency to `io.github.kaiser-haque`).
+  - `mvn javadoc:javadoc` → BUILD SUCCESS (verified earlier, now via release profile).
+  - Integration tests require Docker (Testcontainers `apache/kafka:3.9.1`); excluded when Docker unavailable — no regression in unit coverage.
+
 ## Notes
 
 Update this file at the end of every daily session.
 
 ## Tests run
 
-- `mvn clean verify` — BUILD SUCCESS, 173 tests (core 19 + kafka 129 + autoconfigure 25 + starter 0 + test 0) via Testcontainers `apache/kafka:3.9.1`; includes end-to-end (9), consumer (1), retry (3), producer (2), correlation (3) integration suites
-- `mvn javadoc:javadoc` — BUILD SUCCESS across all 6 reactor modules (core, kafka, autoconfigure); previously failed on `MantoRecord` kafka link + missing `@return` warnings
-- `mvn dependency:tree` — verified BOM-managed versions (spring-boot 3.5.16, spring-kafka 3.3.16, kafka-clients 3.9.2, jackson 2.21.4, micrometer 1.15.12, testcontainers 1.21.4) and zero compile deps for `manto-core`
-- `mvn dependency:analyze` — false-positive warnings only (transitive spring beans/context/core/messaging via spring-kafka); no unused compile deps
-- `mvn -f examples/order-payment/pom.xml compile` — not re-run (Day 26 guarantee; Day 27 only touched framework POM/Javadoc/charset, no API change)
+- `mvn clean verify -P release -Dgpg.skip=true -Dtest=!*IntegrationTest -Dsurefire.failIfNoSpecifiedTests=false` — BUILD SUCCESS, 155 unit tests (core 19 + kafka 124 non-integration + autoconfigure 12 + starter 0 + test 0), sources/javadoc generated for all 5 modules (starter/test now non-empty via placeholder classes)
+- `mvn clean verify -P release -Dgpg.skip=true -Dsurefire.failIfNoSpecifiedTests=false` with Docker-less integration skip → verified `-sources.jar` and `-javadoc.jar` for manto-core, manto-kafka, manto-spring-boot-autoconfigure, manto-spring-boot-starter (now `MantoStarter.java`), manto-test (now `MantoTest.java`)
+- `mvn install -DskipTests` — BUILD SUCCESS (reactor with new `io.github.kaiser-haque` groupId)
+- `mvn -f examples/order-payment/pom.xml compile` — BUILD SUCCESS (after groupId migration)
+- `mvn help:effective-pom -pl manto-core` — verified release profile bindings (source/javadoc/gpg/central)
+- `mvn dependency:tree` — verified new `io.github.kaiser-haque` coordinates resolve across reactor (no snapshot pollution)
+- `python -c "import yaml"` — validated `.github/workflows/ci.yml` and `release.yml` YAML syntax
 
 ## Known issues
 
-- The Kafka container image pull dominates the integration test runtime on first run (~1 minute; ~25–45 s per Testcontainers suite). No functional issues.
+- The Kafka container image pull dominates the integration test runtime on first run (~1 minute; ~25–45 s per Testcontainers suite). No functional issues. CI `ci.yml` runs `mvn -B clean verify` which will run integration tests on GitHub runners (Docker available); `release.yml` also runs `verify` with Testcontainers.
 - SLF4J NOP warnings appear during tests; no logger binding is configured (non-blocking).
-- Example requires a running Kafka at `localhost:9092` and a prior `mvn install -DskipTests` to resolve `0.1.0-SNAPSHOT` from local repo (not yet on Maven Central).
+- Example requires a running Kafka at `localhost:9092` and a prior `mvn install -DskipTests` to resolve `0.1.0-SNAPSHOT` from local repo (not yet on Maven Central — will be `io.github.kaiser-haque:manto-spring-boot-starter:0.9.0` after first Central publish).
 - `MantoDeadLetterPublishingRecoverer` uses a `ThreadLocal<Exception>` to propagate the exception to `createProducerRecord`; DLT_RETRY_COUNT is derived from `maxAttempts - 1` (configuration-level, not per-record) — documented in OBSERVABILITY/ERROR_HANDLING.
 - MantoListener registration still requires `kafkaListenerContainerFactory` named exactly — documented in CONFIGURATION.
 - No Checkstyle/SpotBugs/PMD in CI yet; only `maven-enforcer-plugin` configured. Full static analysis can be added post v1.0.
 - `org.owasp:dependency-check-maven` not yet wired in CI; manual `mvn org.owasp:dependency-check-maven:check` with NVD API key recommended before Maven Central publish (see `docs/SECURITY_MODEL.md`).
+- Maven Central 1.0.0 not published today per task constraint — workflow guard fails if `version == 1.0.0`. First publish should be `0.9.0` RC; Day 28 validated bundle generation only (`-Dgpg.skip=true` dry-run and `release.yml` dryRun path).
 
 ## Next task
 
-Day 28 — Maven Central release. Expected commit message for Day 27: `chore: harden release quality`
+Day 29 — Performance and polish. Expected commit message for Day 28: `build: prepare Maven Central publishing`

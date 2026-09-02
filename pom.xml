@@ -5,7 +5,7 @@
 
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>io.github.manto</groupId>
+    <groupId>io.github.kaiser-haque</groupId>
     <artifactId>manto</artifactId>
     <version>0.1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
@@ -23,6 +23,14 @@
     </licenses>
 
     <developers>
+        <developer>
+            <id>kaiser-haque</id>
+            <name>Kaiser Haque</name>
+            <email>khaque444@gmail.com</email>
+            <url>https://github.com/kaiser-haque</url>
+            <organization>Manto</organization>
+            <organizationUrl>https://github.com/kaiser-haque/manto</organizationUrl>
+        </developer>
         <developer>
             <id>manto</id>
             <name>Manto Contributors</name>
@@ -42,6 +50,13 @@
         <url>https://github.com/kaiser-haque/manto/issues</url>
     </issueManagement>
 
+    <distributionManagement>
+        <snapshotRepository>
+            <id>central</id>
+            <url>https://central.sonatype.com/repository/maven-snapshots</url>
+        </snapshotRepository>
+    </distributionManagement>
+
     <modules>
         <module>manto-core</module>
         <module>manto-kafka</module>
@@ -57,6 +72,11 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <spring-boot.version>3.5.16</spring-boot.version>
         <project.build.outputTimestamp>2026-08-31T00:00:00Z</project.build.outputTimestamp>
+        <maven-source-plugin.version>3.3.1</maven-source-plugin.version>
+        <maven-javadoc-plugin.version>3.12.0</maven-javadoc-plugin.version>
+        <maven-gpg-plugin.version>3.2.7</maven-gpg-plugin.version>
+        <central-publishing-maven-plugin.version>0.9.0</central-publishing-maven-plugin.version>
+        <maven-enforcer-plugin.version>3.5.0</maven-enforcer-plugin.version>
     </properties>
 
     <dependencyManagement>
@@ -69,27 +89,27 @@
                 <scope>import</scope>
             </dependency>
             <dependency>
-                <groupId>io.github.manto</groupId>
+                <groupId>io.github.kaiser-haque</groupId>
                 <artifactId>manto-core</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>io.github.manto</groupId>
+                <groupId>io.github.kaiser-haque</groupId>
                 <artifactId>manto-kafka</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>io.github.manto</groupId>
+                <groupId>io.github.kaiser-haque</groupId>
                 <artifactId>manto-spring-boot-autoconfigure</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>io.github.manto</groupId>
+                <groupId>io.github.kaiser-haque</groupId>
                 <artifactId>manto-spring-boot-starter</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>io.github.manto</groupId>
+                <groupId>io.github.kaiser-haque</groupId>
                 <artifactId>manto-test</artifactId>
                 <version>${project.version}</version>
             </dependency>
@@ -133,39 +153,51 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-source-plugin</artifactId>
-                    <version>3.3.1</version>
-                    <executions>
-                        <execution>
-                            <id>attach-sources</id>
-                            <goals>
-                                <goal>jar-no-fork</goal>
-                            </goals>
-                        </execution>
-                    </executions>
+                    <version>${maven-source-plugin.version}</version>
+                    <configuration>
+                        <excludes>
+                            <exclude>**/test/**</exclude>
+                        </excludes>
+                    </configuration>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-javadoc-plugin</artifactId>
-                    <version>3.12.0</version>
+                    <version>${maven-javadoc-plugin.version}</version>
                     <configuration>
                         <source>${maven.compiler.release}</source>
                         <doclint>all,-missing</doclint>
                         <failOnError>true</failOnError>
                         <failOnWarnings>false</failOnWarnings>
                     </configuration>
-                    <executions>
-                        <execution>
-                            <id>attach-javadocs</id>
-                            <goals>
-                                <goal>jar</goal>
-                            </goals>
-                        </execution>
-                    </executions>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-gpg-plugin</artifactId>
+                    <version>${maven-gpg-plugin.version}</version>
+                    <configuration>
+                        <gpgArguments>
+                            <arg>--pinentry-mode</arg>
+                            <arg>loopback</arg>
+                        </gpgArguments>
+                    </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.sonatype.central</groupId>
+                    <artifactId>central-publishing-maven-plugin</artifactId>
+                    <version>${central-publishing-maven-plugin.version}</version>
+                    <extensions>true</extensions>
+                    <configuration>
+                        <publishingServerId>central</publishingServerId>
+                        <autoPublish>false</autoPublish>
+                        <waitUntil>validated</waitUntil>
+                        <checksums>all</checksums>
+                    </configuration>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-enforcer-plugin</artifactId>
-                    <version>3.5.0</version>
+                    <version>${maven-enforcer-plugin.version}</version>
                     <executions>
                         <execution>
                             <id>enforce</id>
@@ -189,5 +221,60 @@
             </plugins>
         </pluginManagement>
     </build>
+
+    <profiles>
+        <!-- Release profile: sources, javadoc, signing, and Central Publishing. -->
+        <!-- Activate with: mvn -P release verify/deploy (requires GPG key + Central token). -->
+        <!-- Sources/Javadoc are release-only to keep normal builds fast, but can be -->
+        <!-- verified locally with: mvn -P release verify -Dgpg.skip=true -->
+        <profile>
+            <id>release</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-source-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>attach-sources</id>
+                                <goals>
+                                    <goal>jar-no-fork</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-javadoc-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>attach-javadocs</id>
+                                <goals>
+                                    <goal>jar</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-gpg-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>sign-artifacts</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>sign</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.sonatype.central</groupId>
+                        <artifactId>central-publishing-maven-plugin</artifactId>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
 </project>

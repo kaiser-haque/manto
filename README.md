@@ -21,11 +21,11 @@ Manto v1.0 is `0.1.0-SNAPSHOT` from local build until Maven Central publication 
 mvn install -DskipTests
 ```
 
-Then add the starter to your application:
+Then add the starter to your application (until Maven Central publish, build locally; after Day 28 the verified Central coordinate is `io.github.kaiser-haque` — package names remain `io.github.manto.*`):
 
 ```xml
 <dependency>
-    <groupId>io.github.manto</groupId>
+    <groupId>io.github.kaiser-haque</groupId>
     <artifactId>manto-spring-boot-starter</artifactId>
     <version>0.1.0-SNAPSHOT</version>
 </dependency>

@@ -27,7 +27,7 @@
 
     <dependencies>
         <dependency>
-            <groupId>io.github.manto</groupId>
+            <groupId>io.github.kaiser-haque</groupId>
             <artifactId>manto-spring-boot-starter</artifactId>
             <version>${manto.version}</version>
         </dependency>
