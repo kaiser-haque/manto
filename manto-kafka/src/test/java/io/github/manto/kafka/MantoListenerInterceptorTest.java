@@ -96,6 +96,69 @@ class MantoListenerInterceptorTest {
     }
 
     @Test
+    void successCallbackRecordsProcessingDurationAndClearsContext() {
+        MeterRegistry registry = new SimpleMeterRegistry();
+        MantoMetrics metrics = new MantoMetrics(registry, true);
+        MantoListenerInterceptor interceptor = new MantoListenerInterceptor(metrics);
+
+        ConsumerRecord<String, Object> record = recordWithHeader("test-topic",
+                MantoHeaders.CORRELATION_ID, "corr-success");
+        Consumer<String, Object> consumer = mock(Consumer.class);
+
+        interceptor.intercept(record, consumer);
+        assertEquals("corr-success", CorrelationIdContext.get());
+
+        interceptor.success(record, consumer);
+
+        assertNotNull(registry.get("manto.processing.duration")
+                .tag("topic", "test-topic")
+                .tag("operation", "process")
+                .timer());
+        assertNull(CorrelationIdContext.get());
+    }
+
+    @Test
+    void failureCallbackRecordsFailedAndClearsContext() {
+        MeterRegistry registry = new SimpleMeterRegistry();
+        MantoMetrics metrics = new MantoMetrics(registry, true);
+        MantoListenerInterceptor interceptor = new MantoListenerInterceptor(metrics);
+
+        ConsumerRecord<String, Object> record = recordWithHeader("test-topic",
+                MantoHeaders.CORRELATION_ID, "corr-failure");
+        Consumer<String, Object> consumer = mock(Consumer.class);
+
+        interceptor.intercept(record, consumer);
+        assertEquals("corr-failure", CorrelationIdContext.get());
+
+        interceptor.failure(record, new RuntimeException("boom"), consumer);
+
+        assertEquals(1, registry.get("manto.messages.failed")
+                .tag("topic", "test-topic")
+                .tag("operation", "consume")
+                .tag("outcome", "failure")
+                .counter()
+                .count());
+        assertNull(CorrelationIdContext.get());
+    }
+
+    @Test
+    void successAndFailureCallbacksAreNullSafeWithoutMetrics() {
+        MantoListenerInterceptor interceptor = new MantoListenerInterceptor(null);
+
+        ConsumerRecord<String, Object> record = recordWithHeader("test-topic",
+                MantoHeaders.CORRELATION_ID, "corr-null");
+        Consumer<String, Object> consumer = mock(Consumer.class);
+
+        interceptor.intercept(record, consumer);
+        interceptor.success(record, consumer);
+        assertNull(CorrelationIdContext.get());
+
+        interceptor.intercept(record, consumer);
+        interceptor.failure(record, new RuntimeException("boom"), consumer);
+        assertNull(CorrelationIdContext.get());
+    }
+
+    @Test
     void doesNotRecordWhenDisabled() {
         MeterRegistry registry = new SimpleMeterRegistry();
         MantoMetrics metrics = new MantoMetrics(registry, false);

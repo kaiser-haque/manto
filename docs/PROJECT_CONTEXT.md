@@ -30,13 +30,13 @@ Java/Spring Boot teams using Apache Kafka who want standardized application-leve
 
 ## Core user experience
 
-Dependency (snapshot while v1.0 is in development; replace `0.1.0-SNAPSHOT` with the Maven Central release version `1.0.0` once published — verified Central coordinate is `io.github.kaiser-haque` (see `docs/MAVEN_CENTRAL.md`); Java packages remain `io.github.manto.*`):
+Dependency (release candidate `0.9.0` from local build while v1.0 is in development; replace `0.9.0` with the Maven Central release version `1.0.0` once published — verified Central coordinate is `io.github.kaiser-haque` (see `docs/MAVEN_CENTRAL.md`); Java packages remain `io.github.manto.*`):
 
 ```xml
 <dependency>
   <groupId>io.github.kaiser-haque</groupId>
   <artifactId>manto-spring-boot-starter</artifactId>
-  <version>0.1.0-SNAPSHOT</version>
+  <version>0.9.0</version>
 </dependency>
 ```
 

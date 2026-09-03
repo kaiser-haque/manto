@@ -13,7 +13,7 @@ All instruments are defined in `MantoMetrics` (`manto-kafka/src/main/java/io/git
 | `manto.messages.published` | Counter | `topic`, `operation=publish`, `outcome=success` | `MantoKafkaProducer.publish` after `KafkaTemplate.send(...).get()` succeeds (`MantoKafkaProducer.java:74`) |
 | `manto.messages.published` | Counter | `topic`, `operation=publish`, `outcome=failure` | `MantoKafkaProducer` catch blocks for `InterruptedException` / `ExecutionException` (`MantoKafkaProducer.java:79`) |
 | `manto.messages.consumed` | Counter | `topic`, `operation=consume`, `outcome=success` | `MantoListenerInterceptor.intercept` on every delivered record (`MantoListenerInterceptor.java:33`) |
-| `manto.messages.failed` | Counter | `topic`, `operation=consume`, `outcome=failure` | `MantoListenerInterceptor.recordFailed` called via the error handler path |
+| `manto.messages.failed` | Counter | `topic`, `operation=consume`, `outcome=failure` | `MantoListenerInterceptor.failure` container callback on every failed delivery |
 | `manto.messages.retried` | Counter | `topic`, `operation=retry`, `outcome=attempt` | `MantoErrorHandler` on each retry attempt |
 | `manto.messages.dlt` | Counter | `topic`, `operation=dlt`, `outcome=published` | `MantoDeadLetterPublishingRecoverer.accept` after DLT publish (`MantoDeadLetterPublishingRecoverer.java:66`) |
 | `manto.processing.duration` | Timer | `topic`, `operation=process` (percentile histogram) | `MantoListenerInterceptor` around handler execution (`MantoMetrics.java:39`) |

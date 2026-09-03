@@ -36,6 +36,16 @@ public class MantoListenerInterceptor implements RecordInterceptor<String, Objec
         return record;
     }
 
+    @Override
+    public void success(ConsumerRecord<String, Object> record, Consumer<String, Object> consumer) {
+        recordProcessingDuration(record.topic());
+    }
+
+    @Override
+    public void failure(ConsumerRecord<String, Object> record, Exception exception, Consumer<String, Object> consumer) {
+        recordFailed(record.topic());
+    }
+
     public void recordProcessingDuration(String topic) {
         io.micrometer.core.instrument.Timer.Sample sample = processingTimer.get();
         if (sample != null && metrics != null) {

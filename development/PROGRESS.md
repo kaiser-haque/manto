@@ -2,13 +2,13 @@
 
 ## Current day
 
-Day 28 — Maven Central preparation.
+Day 29 — Release candidate.
 
-Next session: Day 29 — Performance and polish.
+Next session: Day 30 — Manto 1.0.0.
 
 ## Current version
 
-0.1.0-SNAPSHOT
+0.9.0
 
 ## Completed
 
@@ -35,10 +35,30 @@ Next session: Day 29 — Performance and polish.
 - [x] Documentation
 - [x] Quality and security
 - [x] Maven Central preparation
+- [x] Release candidate verification
 
 ## Current task
 
-Day 28 — Maven Central preparation.
+Day 29 — Release candidate.
+
+## Day 29 work
+
+
+- Built the `0.9.0` release candidate: `mvn versions:set -DnewVersion=0.9.0` across the reactor (`pom.xml` + 5 module parents; `project.build.outputTimestamp` refreshed to `2026-09-03T03:37:12Z`), `examples/order-payment` `manto.version` → `0.9.0`, canonical snippets in `README.md:18`/`docs/PROJECT_CONTEXT.md:33` updated to `0.9.0`. No new features; version/config/docs only.
+- **Clean external-consumer test** (new, outside the repo at `manto-rc-external-test`, deleted after the run): separate Spring Boot 3.5.16 project depending on `io.github.kaiser-haque:manto-spring-boot-starter:0.9.0` as a binary artifact (no reactor, no `relativePath`; resolved from local `~/.m2`, simulating Maven Central). `ExternalConsumerVerificationTest` (7 tests, Testcontainers `apache/kafka:3.9.1`) verified: `mvn dependency:tree` resolution (`starter → autoconfigure → core + kafka`), starter auto-configuration beans (`MantoProducer`, `IdempotencyStore`, `MantoMetrics`, `MeterRegistry`, `mantoKafkaTemplate`/`mantoDltKafkaTemplate`, `kafkaListenerContainerFactory`, `mantoListenerRegistrar`, `MantoAutoConfiguration`), producer headers + JSON payload, `@MantoListener` typed consume, retry recovery (2 attempts), DLT routing with all diagnostic headers, idempotency skip on duplicate correlation ID + correlation propagation, and Micrometer counters/timer (`published`, `consumed`, `retried`, `dlt`, `processing.duration`). Result: **7/7 pass** after the two release-blocking fixes below.
+- **Release-blocking fix 1 — missing Bean Validation provider** (`manto-spring-boot-autoconfigure/pom.xml:44`): external startup failed with `jakarta.validation.NoProviderFoundException` because `MantoProperties` is `@Validated` but the starter only brought `jakarta.validation-api`; `hibernate-validator` was test-scope only (masked by in-repo tests and by `spring-boot-starter-web` in the example). Added compile-scope `spring-boot-starter-validation` (idiomatic, BOM-managed) and removed the redundant test-scope `hibernate-validator`/`jakarta.el` pins. Direct `jakarta.validation-api` kept as the directly-imported API.
+- **Release-blocking fix 2 — documented metrics never recorded at runtime**: `manto.messages.failed`, `manto.messages.retried`, and `manto.processing.duration` were documented (`docs/OBSERVABILITY.md`, `README.md`) and unit-tested in isolation but dead in production — nothing called `MantoListenerInterceptor.recordProcessingDuration/recordFailed`, and `MantoErrorHandler` (despite its "records retry and failure metrics" Javadoc since Day 22) overrode nothing.
+  - `MantoListenerInterceptor.java:39` now overrides `success` → `recordProcessingDuration(topic)` and `failure` → `recordFailed(topic)` (standard Spring Kafka `RecordInterceptor` callbacks invoked by the container adapter; also closes the correlation `ThreadLocal` on both paths as documented).
+  - `MantoErrorHandler.java:15` now registers a `RetryListener` in both constructors recording `recordRetried(record.topic())` on each failed delivery (null-safe when no metrics; no-op when observability disabled).
+  - New tests: `MantoErrorHandlerTest` (4 tests: both constructors, null-metrics safety, disabled no-op) and 3 new `MantoListenerInterceptorTest` cases (success/failure callbacks incl. context cleanup and null-metrics safety).
+  - Docs refined to the actual hook: `README.md:329`, `docs/OBSERVABILITY.md:16` failed-metric row now names the `failure` container callback.
+- Tests:
+  - External: `mvn test -Dtest=ExternalConsumerVerificationTest` in temp project → 7/7 pass (first run caught both blockers: validation provider + timer/retried assertions).
+  - `mvn clean verify` → BUILD SUCCESS, **180 tests** (core 19 + kafka 136 incl. 7 new + autoconfigure 25 incl. E2E/consumer/retry integration on Testcontainers), 0 failures.
+  - `mvn clean verify -P release -Dgpg.skip=true -DskipTests` → BUILD SUCCESS, sources/javadoc jars for all modules.
+  - `mvn -f examples/order-payment/pom.xml clean compile` → BUILD SUCCESS against `0.9.0`.
+  - `mvn dependency:tree -Dincludes=io.github.kaiser-haque*` in temp project → `starter:0.9.0 → autoconfigure:0.9.0 → core + kafka:0.9.0`, no source coupling.
+- `CHANGELOG.md`: added `0.9.0 (Release Candidate)` entry.
 
 ## Day 28 work
 
@@ -530,6 +550,13 @@ Update this file at the end of every daily session.
 
 ## Tests run
 
+- Day 29 external RC verification (temp project `manto-rc-external-test`, Testcontainers `apache/kafka:3.9.1`): `mvn test -Dtest=ExternalConsumerVerificationTest` → 7/7 pass (auto-configuration, producer, consumer, retry, DLT, idempotency, metrics)
+- Day 29 `mvn clean verify` → BUILD SUCCESS, 180 tests (core 19 + kafka 136 + autoconfigure 25), 0 failures
+- Day 29 `mvn clean verify -P release -Dgpg.skip=true -DskipTests` → BUILD SUCCESS, `-sources.jar`/`-javadoc.jar` for all 5 modules at `0.9.0`
+- Day 29 `mvn install -DskipTests` → BUILD SUCCESS (`0.9.0` in local repo)
+- Day 29 `mvn -f examples/order-payment/pom.xml clean compile` → BUILD SUCCESS against `0.9.0`
+- Day 29 `mvn dependency:tree -Dincludes=io.github.kaiser-haque*` (external project) → `starter:0.9.0 → autoconfigure:0.9.0 → core + kafka:0.9.0`, no source coupling
+- Day 28 and earlier:
 - `mvn clean verify -P release -Dgpg.skip=true -Dtest=!*IntegrationTest -Dsurefire.failIfNoSpecifiedTests=false` — BUILD SUCCESS, 155 unit tests (core 19 + kafka 124 non-integration + autoconfigure 12 + starter 0 + test 0), sources/javadoc generated for all 5 modules (starter/test now non-empty via placeholder classes)
 - `mvn clean verify -P release -Dgpg.skip=true -Dsurefire.failIfNoSpecifiedTests=false` with Docker-less integration skip → verified `-sources.jar` and `-javadoc.jar` for manto-core, manto-kafka, manto-spring-boot-autoconfigure, manto-spring-boot-starter (now `MantoStarter.java`), manto-test (now `MantoTest.java`)
 - `mvn install -DskipTests` — BUILD SUCCESS (reactor with new `io.github.kaiser-haque` groupId)
@@ -542,13 +569,17 @@ Update this file at the end of every daily session.
 
 - The Kafka container image pull dominates the integration test runtime on first run (~1 minute; ~25–45 s per Testcontainers suite). No functional issues. CI `ci.yml` runs `mvn -B clean verify` which will run integration tests on GitHub runners (Docker available); `release.yml` also runs `verify` with Testcontainers.
 - SLF4J NOP warnings appear during tests; no logger binding is configured (non-blocking).
-- Example requires a running Kafka at `localhost:9092` and a prior `mvn install -DskipTests` to resolve `0.1.0-SNAPSHOT` from local repo (not yet on Maven Central — will be `io.github.kaiser-haque:manto-spring-boot-starter:0.9.0` after first Central publish).
+- Example requires a running Kafka at `localhost:9092` and a prior `mvn install -DskipTests` to resolve `0.9.0` from local repo (not yet on Maven Central — publish `io.github.kaiser-haque:manto-spring-boot-starter:0.9.0` first per `docs/MAVEN_CENTRAL.md`).
 - `MantoDeadLetterPublishingRecoverer` uses a `ThreadLocal<Exception>` to propagate the exception to `createProducerRecord`; DLT_RETRY_COUNT is derived from `maxAttempts - 1` (configuration-level, not per-record) — documented in OBSERVABILITY/ERROR_HANDLING.
 - MantoListener registration still requires `kafkaListenerContainerFactory` named exactly — documented in CONFIGURATION.
 - No Checkstyle/SpotBugs/PMD in CI yet; only `maven-enforcer-plugin` configured. Full static analysis can be added post v1.0.
 - `org.owasp:dependency-check-maven` not yet wired in CI; manual `mvn org.owasp:dependency-check-maven:check` with NVD API key recommended before Maven Central publish (see `docs/SECURITY_MODEL.md`).
 - Maven Central 1.0.0 not published today per task constraint — workflow guard fails if `version == 1.0.0`. First publish should be `0.9.0` RC; Day 28 validated bundle generation only (`-Dgpg.skip=true` dry-run and `release.yml` dryRun path).
+- Day 29 notes:
+  - `manto.messages.retried` counts every failed delivery reaching the error handler (including the terminal delivery of a non-retryable failure) — retryable flows match "one count per retry attempt" exactly; acceptable for v1.0, revisit only if finer semantics are required.
+  - Two `KafkaTemplate` beans exist (`mantoKafkaTemplate`, `mantoDltKafkaTemplate`); external users injecting a raw `KafkaTemplate` by type must qualify with `@Qualifier("mantoKafkaTemplate")` — pre-existing design, confirmed working in the external test; no change made.
+  - The external RC project lived outside the repo (`Temp/opencode/manto-rc-external-test`) and is not committed — in-repo coverage of the fixed wiring is via `MantoErrorHandlerTest` + `MantoListenerInterceptorTest`.
 
 ## Next task
 
-Day 29 — Performance and polish. Expected commit message for Day 28: `build: prepare Maven Central publishing`
+Day 30 — Manto 1.0.0: publish stable release, tag `v1.0.0`, verify Maven Central consumption. Expected commit message for Day 29: `release: prepare Manto 0.9.0`

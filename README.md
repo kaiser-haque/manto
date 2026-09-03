@@ -15,7 +15,7 @@ Manto does not replace Kafka. It removes repetitive boilerplate without hiding K
 
 ### Dependency
 
-Manto v1.0 is `0.1.0-SNAPSHOT` from local build until Maven Central publication (see `docs/MAVEN_CENTRAL.md`). Build once at the repository root:
+Manto `0.9.0` is the release candidate from local build until Maven Central publication (see `docs/MAVEN_CENTRAL.md`). Build once at the repository root:
 
 ```bash
 mvn install -DskipTests
@@ -27,7 +27,7 @@ Then add the starter to your application (until Maven Central publish, build loc
 <dependency>
     <groupId>io.github.kaiser-haque</groupId>
     <artifactId>manto-spring-boot-starter</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.9.0</version>
 </dependency>
 ```
 
@@ -326,7 +326,7 @@ Manto uses Micrometer (`MantoMetrics.java:16`). Six low-cardinality instruments 
 |---|---|---|
 | `manto.messages.published` | `topic`, `operation=publish`, `outcome=success\|failure` | `MantoKafkaProducer` after `KafkaTemplate.send(...).get()` |
 | `manto.messages.consumed` | `topic`, `operation=consume`, `outcome=success` | `MantoListenerInterceptor.intercept` |
-| `manto.messages.failed` | `topic`, `operation=consume`, `outcome=failure` | `MantoListenerInterceptor.recordFailed` via `MantoErrorHandler` |
+| `manto.messages.failed` | `topic`, `operation=consume`, `outcome=failure` | `MantoListenerInterceptor.failure` container callback on every failed delivery |
 | `manto.messages.retried` | `topic`, `operation=retry`, `outcome=attempt` | `MantoErrorHandler` on each retry |
 | `manto.messages.dlt` | `topic`, `operation=dlt`, `outcome=published` | `MantoDeadLetterPublishingRecoverer.accept` |
 | `manto.processing.duration` | `topic`, `operation=process` (percentile histogram) | `MantoListenerInterceptor` timer around handler execution |
