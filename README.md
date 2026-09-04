@@ -15,20 +15,20 @@ Manto does not replace Kafka. It removes repetitive boilerplate without hiding K
 
 ### Dependency
 
-Manto `0.9.0` is the release candidate from local build until Maven Central publication (see `docs/MAVEN_CENTRAL.md`). Build once at the repository root:
-
-```bash
-mvn install -DskipTests
-```
-
-Then add the starter to your application (until Maven Central publish, build locally; after Day 28 the verified Central coordinate is `io.github.kaiser-haque` — package names remain `io.github.manto.*`):
+Manto `1.0.0` is available from Maven Central (see `docs/MAVEN_CENTRAL.md`). Add the starter to your application (verified Central coordinate is `io.github.kaiser-haque` — package names remain `io.github.manto.*`):
 
 ```xml
 <dependency>
     <groupId>io.github.kaiser-haque</groupId>
     <artifactId>manto-spring-boot-starter</artifactId>
-    <version>0.9.0</version>
+    <version>1.0.0</version>
 </dependency>
+```
+
+To build from source, run once at the repository root:
+
+```bash
+mvn install -DskipTests
 ```
 
 The starter transitively brings `manto-spring-boot-autoconfigure`, `manto-kafka`, and `manto-core`. No other Manto dependency is needed. See `manto-spring-boot-starter/pom.xml:20` and `docs/ARCHITECTURE.md`.
@@ -384,33 +384,32 @@ mvn -pl manto-core -am test      # fast unit tests only
 | `docs/ERROR_HANDLING.md` | Retry, backoff, exception classification, DLT |
 | `docs/OBSERVABILITY.md` | Metrics and correlation IDs |
 | `docs/TESTING_STRATEGY.md` | Test pyramid and Testcontainers usage |
-| `development/decisions/` | ADRs 001–006 |
 
-## v1.0 Goal and Non-Goals
+## v1.0 Scope
 
-Shipped through Day 27: producer, `@MantoListener`, JSON serialization (Jackson + `JavaTimeModule`, ISO dates), metadata/correlation headers, configurable retry with exponential backoff, DLT, in-memory idempotency (single-instance, ADR-005), Micrometer, Spring Boot starter, Testcontainers integration, documentation (Day 26), and release-quality hardening (Day 27).
+Shipped: producer, `@MantoListener`, JSON serialization (Jackson + `JavaTimeModule`, ISO dates), metadata/correlation headers, configurable retry with exponential backoff, DLT, in-memory idempotency (single-instance), Micrometer, Spring Boot starter, Testcontainers integration, and documentation.
 
 Not in v1.0: Avro/Protobuf, Schema Registry, Kafka Streams, admin UI/CLI, event replay, Redis idempotency (implement `IdempotencyStore` yourself).
 
-### Day 26 — Documentation (Day 26)
+### Documentation
 
-Complete user-facing documentation for external developers: `README.md` (installation, auto-configuration bean inventory, producer/consumer quick start, correlation propagation, `@MantoListener` validator constraints, retry/DLT/idempotency/metrics/correlation guide, example links), `docs/CONFIGURATION.md` (full `manto.*` YAML reference with types/defaults/constraints at `MantoProperties.java:19`), `docs/ERROR_HANDLING.md` (retry → backoff → DLT lifecycle, `DefaultExceptionClassifier.java:20`, 14-header DLT table), `docs/OBSERVABILITY.md` (6 instruments at `MantoMetrics.java:16`, `SimpleMeterRegistry` fallback at `MantoAutoConfiguration.java:93`, `CorrelationIdContext.java:13`), `examples/order-payment/README.md` (feature table with file:line, `docker run apache/kafka:3.9.1`, `curl` demos). See `development/PROGRESS.md#day-26-work`.
+Complete user-facing documentation: `README.md` (installation, auto-configuration bean inventory, producer/consumer quick start, correlation propagation, `@MantoListener` validator constraints, retry/DLT/idempotency/metrics/correlation guide, example links), `docs/CONFIGURATION.md` (full `manto.*` YAML reference), `docs/ERROR_HANDLING.md` (retry → backoff → DLT lifecycle, 14-header DLT table), `docs/OBSERVABILITY.md` (metrics, `SimpleMeterRegistry` fallback, correlation context), `examples/order-payment/README.md` (feature table, `docker run apache/kafka:3.9.1`, `curl` demos).
 
-### Day 27 — Quality and Security (Day 27)
+### Quality and Security
 
-Release-quality hardening (`chore: harden release quality`, `development/PROGRESS.md#day-27-work`):
+Release-quality hardening:
 
-- **Dependencies** – BOM-managed versions verified (`pom.xml:29`, `mvn dependency:tree`/`dependency:analyze`): Spring Boot 3.5.16 → spring-kafka 3.3.16, kafka-clients 3.9.2, jackson 2.21.4, micrometer 1.15.12, testcontainers 1.21.4; `manto-core` zero compile deps (ADR-003); no vulnerabilities in current line.
-- **JavaDoc** – fixed `MantoRecord.java:11` kafka-free, added `@return/@param` to `MantoHeader.java:11`, `MantoRecord.java:18`, `MantoListener.java:18`, field docs to `MantoHeaders.java:8`, `MantoEventMetadata.java:26`; `mvn javadoc:javadoc` now BUILD SUCCESS (6 modules).
+- **Dependencies** – BOM-managed versions verified (`mvn dependency:tree`/`dependency:analyze`): Spring Boot 3.5.16 → spring-kafka 3.3.16, kafka-clients 3.9.2, jackson 2.21.4, micrometer 1.15.12, testcontainers 1.21.4; `manto-core` zero compile deps; no vulnerabilities in current line.
+- **JavaDoc** – `mvn javadoc:javadoc` BUILD SUCCESS (all modules).
 - **Public API** – no breaking changes; all public types documented.
-- **Logging/Secrets** – framework emits zero loggers; example logs only `orderId/correlationId` (`PaymentHandler.java:45`); `MantoDeserializationException.java:15` truncates 200 chars; no hardcoded secrets (`MantoProperties.java:84`).
-- **Exception handling** – NPE fix for null `targetType` (`MantoDeserializationException.java:15`), charset fixes (`MantoListenerInterceptor.java:59`, `MantoHeaderExtractor.java:64` → `StandardCharsets.UTF_8`), proper interrupt restore (`MantoKafkaProducer.java:77`).
-- **Build reproducibility** – `project.build.outputTimestamp` (`pom.xml:30`), Maven Central metadata (`pom.xml:13` – `<url>`, `<licenses>` Apache-2.0, `<scm>`, `<developers>`), `maven-source-plugin:3.3.1` + `maven-javadoc-plugin:3.12.0` + `maven-enforcer-plugin:3.5.0`.
-- **Tests** – `mvn clean verify` 173 tests (core 19 + kafka 129 + autoconfigure 25) via Testcontainers `apache/kafka:3.9.1`; includes `MantoEndToEndIntegrationTest` (9). Static analysis via `enforcer` (`requireUpperBoundDeps`).
+- **Logging/Secrets** – framework emits zero loggers; example logs only `orderId/correlationId`; deserialization errors truncate payload previews to 200 chars; no hardcoded secrets.
+- **Exception handling** – null-safe error types, UTF-8 header decoding, proper interrupt restore on producer failures.
+- **Build reproducibility** – `project.build.outputTimestamp`, Maven Central metadata (`<url>`, `<licenses>` Apache-2.0, `<scm>`, `<developers>`), `maven-source-plugin` + `maven-javadoc-plugin` + `maven-enforcer-plugin`.
+- **Tests** – `mvn clean verify` (~180 tests: core + kafka + autoconfigure) via Testcontainers `apache/kafka:3.9.1`; includes end-to-end integration coverage. Dependency convergence enforced via `requireUpperBoundDeps`.
 
-## Development Model
+## Contributing
 
-30 one-hour daily sessions. Read `AGENTS.md` first, then the task file in `tasks/`.
+See `CONTRIBUTING.md` for how to build, test, and submit changes.
 
 ## License
 

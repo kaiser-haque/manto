@@ -14,12 +14,12 @@ Manto uses the GitHub-verified namespace `io.github.kaiser-haque`.
   GitHub account that signs up at https://central.sonatype.com. For this repository
   (`https://github.com/kaiser-haque/manto`) the verified namespace is
   `io.github.kaiser-haque` (owner `kaiser-haque`).
-- The placeholder `io.github.manto` used during Days 1–27 **is not** auto-verified
+- The placeholder `io.github.manto` used during early development **is not** auto-verified
   for `kaiser-haque` — Central Portal scopes `io.github.*` to the authenticated
   GitHub username, not an organization name (see "GitHub Namespaces" docs: only
   `io.github.<your username>` is auto-provisioned). To publish under
   `io.github.manto` you would need to sign up as GitHub user `manto` or verify a
-  custom domain via DNS TXT. Therefore Day 28 migrates the Maven coordinates to
+  custom domain via DNS TXT. Therefore the Maven coordinates were migrated to
   `io.github.kaiser-haque` before the first Central release.
 - **Java package vs. Maven coordinate**: source packages remain `io.github.manto.*`
   (`MantoProducer.java:1`, `MantoKafkaProducer.java:1`, etc.) for backwards
@@ -176,12 +176,7 @@ Git tag vX.Y.Z
 
 - `autoPublish=false` + `waitUntil=validated` — uploads are validated but
   **never auto-published** to Maven Central. Even a `v1.0.0` tag push requires a
-  human to click **Publish** in the Portal UI. This satisfies
-  "Do not publish the final 1.0.0 release today."
-- Guard job (release.yml:68) **fails the workflow if `version == 1.0.0`**
-  during Day 28. First Central release should be `0.9.0` (RC per
-  docs/RELEASE_STRATEGY.md) or another pre-1.0 version; `1.0.0` is reserved
-  until Day 30 after manual approval.
+  human to click **Publish** in the Portal UI.
 - `-SNAPSHOT` versions are rejected (Central requires release versions).
 - Tag/pom mismatch warns but does not auto-correct.
 - `concurrency` group prevents parallel publishes on the same ref.
@@ -201,14 +196,14 @@ mvn -B clean verify -P release -Dgpg.skip=true
 mvn -B clean verify -P release
 ```
 
-**How the first real release will work (after Day 28):**
+**How the 1.0.0 release works:**
 
-1. Update `pom.xml` version from `0.1.0-SNAPSHOT` to `0.9.0` (or final `1.0.0`
-   after soak) via `mvn versions:set -DnewVersion=0.9.0` + commit.
-2. Create and push tag `v0.9.0`: `git tag v0.9.0 && git push origin v0.9.0`
+1. Update `pom.xml` version to `1.0.0`
+   via `mvn versions:set -DnewVersion=1.0.0` + commit.
+2. Create and push tag `v1.0.0`: `git tag v1.0.0 && git push origin v1.0.0`
    — workflow uploads bundle with `mvn deploy -P release`.
 3. In https://central.sonatype.com → **Publishing** → **Deployments** →
-   find deployment `v0.9.0` → review **Validation Results** (requirements,
+   find deployment `v1.0.0` → review **Validation Results** (requirements,
    javadoc/sources presence, signatures) → click **Publish**.
 4. Within minutes the artifacts appear at
    https://central.sonatype.com/artifact/io.github.kaiser-haque/manto-spring-boot-starter/
@@ -219,7 +214,7 @@ mvn -B clean verify -P release
    <dependency>
      <groupId>io.github.kaiser-haque</groupId>
      <artifactId>manto-spring-boot-starter</artifactId>
-     <version>0.9.0</version>
+     <version>1.0.0</version>
    </dependency>
    ```
 

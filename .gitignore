@@ -18,3 +18,9 @@ Thumbs.db
 
 dependency-reduced-pom.xml
 *KEYS.md
+
+# Private development process (kept in local workspace + backup, not published).
+# See E:\code\manto-day30-private-backup for the full internal history.
+AGENTS.md
+tasks/
+development/

@@ -8,7 +8,7 @@
     <parent>
         <groupId>io.github.kaiser-haque</groupId>
         <artifactId>manto</artifactId>
-        <version>0.9.0</version>
+        <version>1.0.0</version>
     </parent>
 
     <artifactId>manto-spring-boot-autoconfigure</artifactId>

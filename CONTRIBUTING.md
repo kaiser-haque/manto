@@ -17,7 +17,7 @@ mvn clean verify
 
 1. Create an issue or select an existing task.
 2. Create a focused branch.
-3. Read `AGENTS.md` and the relevant architecture/ADR documents.
+3. Read `docs/ARCHITECTURE.md` and the relevant documents in `docs/`.
 4. Implement a small change.
 5. Add tests.
 6. Run verification.

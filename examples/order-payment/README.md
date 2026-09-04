@@ -28,7 +28,7 @@ Events are kept trivial (`orderId + amount` / `orderId + status + processedAt`) 
 - Java 21, Maven 3.9+
 - Docker (for Kafka) — or any broker at `localhost:9092`
 
-Build Manto locally once (example depends on `0.1.0-SNAPSHOT` from your local `~/.m2`):
+Build Manto locally once (example depends on `1.0.0` from your local `~/.m2`):
 
 ```bash
 mvn install -DskipTests
